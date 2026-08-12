@@ -1,4 +1,4 @@
-# ScopeFlow (Phase 1–2)
+# ScopeFlow (Phase 1–4)
 
 Runnable MVP-in-progress for ScopeFlow — an AI-powered project planning and execution app.
 
@@ -98,3 +98,14 @@ Phase 3 adds:
   - Trigger work item generation from the analysis.
   - Display the list of generated work items under the intelligence overview.
   - Show clear loading and error states for work item generation.
+
+## Phase 4 – Execution Methodology Selection
+
+Phase 4 adds:
+
+- A polished execution methodology selector on the project workspace.
+- Deterministic choice between `KANBAN` and `AGILE` (no additional AI calls).
+- `/api/projects/methodology` API route to persist the `methodology` field on the `projects` table.
+- Client-side validation to only allow `KANBAN` or `AGILE`.
+- Loading, error, and success states when saving the methodology.
+- Methodology selection is only available once work items exist for the project.

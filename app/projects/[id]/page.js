@@ -8,6 +8,7 @@ import { Button } from "../../../components/ui/button";
 import { getSupabaseClient } from "../../../code-gigs/supabase-client";
 import { IntelligenceOverview } from "../../../components/project/IntelligenceOverview";
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
+import { MethodologySelector } from "../../../components/project/MethodologySelector";
 
 export default function ProjectWorkspacePage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function ProjectWorkspacePage() {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from("projects")
-          .select("id, name, client_message, analysis, created_at")
+          .select("id, name, client_message, analysis, methodology, created_at")
           .eq("id", projectId)
           .single();
         if (error) throw error;
@@ -270,6 +271,12 @@ export default function ProjectWorkspacePage() {
                     )}
                   </CardContent>
                 </Card>
+
+                <MethodologySelector
+                  projectId={project.id}
+                  initialMethodology={project.methodology}
+                  hasWorkItems={workItems.length > 0}
+                />
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <IntelligenceSectionList

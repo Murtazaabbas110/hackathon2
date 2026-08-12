@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set");
   }
@@ -10,7 +10,7 @@ function getGeminiClient() {
 
 function getGeminiModel(genAI) {
   return genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+    model: process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-2.0-flash",
   });
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../code-gigs/supabase-client";
 
 const ALLOWED_METHODS = ["KANBAN", "AGILE"];
 
@@ -14,6 +14,11 @@ export async function POST(req) {
     const body = await req.json();
     const { projectId, methodology } = body || {};
 
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
@@ -23,12 +28,13 @@ export async function POST(req) {
       return NextResponse.json({ error: "Invalid methodology. Allowed values are KANBAN or AGILE." }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data: updated, error: updateError } = await supabase
       .from("projects")
       .update({ methodology: normalized })
       .eq("id", projectId)
+      .eq("user_id", user.id)
       .select("id, methodology")
       .maybeSingle();
 

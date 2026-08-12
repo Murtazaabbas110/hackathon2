@@ -19,6 +19,7 @@ ScopeFlow converts unstructured client messages into structured project intellig
 This repository contains the Next.js demo app used for the hackathon MVP.
 
 Quick overview:
+
 - Next.js (app router) frontend
 - TailwindCSS + shadcn/ui for styling
 - Supabase for persistence and Auth
@@ -26,6 +27,7 @@ Quick overview:
 - dnd-kit for Kanban drag-and-drop
 
 Quickstart (development)
+
 1. Install dependencies
 
 ```bash
@@ -84,18 +86,25 @@ npm run dev
 Open http://localhost:3000 and sign up / sign in.
 
 Notes and developer guidance
+
 - The repo uses a small `code-gigs/` collection of reusable utilities (e.g., `supabase-client`).
 - The `supabase/schema.sql` file contains the canonical schema and the migration mirrors it using non-destructive `CREATE IF NOT EXISTS` statements.
 - Auth is Supabase email/password; server-side API routes should validate `Authorization: Bearer <token>` using the Supabase server client.
 
 Contributing
+
 - Keep changes minimal and focused on demonstrating the product flow: Create project → Analyze (Gemini) → Generate work items → Select methodology → Execute.
 
 Known limitations
+
 - This is a hackathon MVP, optimized for a demo rather than production readiness.
 - Secrets and service-role keys must never be committed.
 
 If you need help running the Supabase CLI or linking to your project, provide the `PROJECT_REF` and I can generate exact commands and any missing migration files.
+
+## Migrations applied (performed in this workspace)
+
+I created a non-destructive migration at `supabase/migrations/20260812000000_create_scopeflow_schema.sql` and applied migrations to the linked Supabase project in this session. If you need to re-run or inspect migrations locally, follow the commands above.
 
 Client components that call these APIs (e.g. `projects/[id]/page.js`, `projects/new/page.js`) now use `authFetch` so the bearer token is always attached.
 
@@ -249,14 +258,12 @@ Do **not** commit real secrets. The `.env` and `.env.local` files are already gi
    Create `.env.local` with the values described above.
 
 3. **Set up Supabase project**
-
    - Create a new Supabase project in the dashboard.
    - Copy the **Project URL** and **anon public key** into `.env.local`.
 
 4. **Initialize the database schema**
 
    You can either:
-
    - Run the migration file directly in the Supabase SQL editor:
 
      ```sql

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../code-gigs/supabase-client";
 
 const ALLOWED_SPRINT_STATUSES = ["TODO", "IN_PROGRESS", "DONE"];
 
@@ -9,6 +9,11 @@ export async function POST(req) {
     const body = await req.json();
     const { workItemId, sprintId } = body || {};
 
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!workItemId) {
       return NextResponse.json({ error: "workItemId is required" }, { status: 400 });
     }
@@ -16,7 +21,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "sprintId is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
       .from("work_items")
@@ -43,11 +48,16 @@ export async function DELETE(req) {
     const body = await req.json().catch(() => ({}));
     const { workItemId } = body || {};
 
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!workItemId) {
       return NextResponse.json({ error: "workItemId is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
       .from("work_items")
@@ -74,6 +84,11 @@ export async function PATCH(req) {
     const body = await req.json();
     const { workItemId, sprintStatus } = body || {};
 
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!workItemId) {
       return NextResponse.json({ error: "workItemId is required" }, { status: 400 });
     }
@@ -83,7 +98,7 @@ export async function PATCH(req) {
       return NextResponse.json({ error: "Invalid sprint status" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
       .from("work_items")

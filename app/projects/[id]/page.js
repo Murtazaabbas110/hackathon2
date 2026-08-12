@@ -14,6 +14,7 @@ import { Button } from "../../../components/ui/button";
 import {
   formatSupabaseError,
   getSupabaseClient,
+  authFetch,
 } from "../../../code-gigs/supabase-client";
 import { IntelligenceOverview } from "../../../components/project/IntelligenceOverview";
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
@@ -138,7 +139,7 @@ export default function ProjectWorkspacePage() {
     setGeneratingWorkItems(true);
     setWorkItemsError(null);
     try {
-      const res = await fetch("/api/projects/work-items", {
+      const res = await authFetch("/api/projects/work-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
@@ -426,7 +427,7 @@ export default function ProjectWorkspacePage() {
                                 : item,
                             ),
                           );
-                          const res = await fetch(
+                          const res = await authFetch(
                             "/api/projects/work-items/status",
                             {
                               method: "PATCH",
@@ -549,7 +550,7 @@ export default function ProjectWorkspacePage() {
                           ),
                         );
                         try {
-                          const res = await fetch(
+                          const res = await authFetch(
                             "/api/projects/sprint-items",
                             {
                               method: "POST",
@@ -585,7 +586,7 @@ export default function ProjectWorkspacePage() {
                           ),
                         );
                         try {
-                          const res = await fetch(
+                          const res = await authFetch(
                             "/api/projects/sprint-items",
                             {
                               method: "DELETE",
@@ -618,7 +619,7 @@ export default function ProjectWorkspacePage() {
                           ),
                         );
                         try {
-                          const res = await fetch(
+                          const res = await authFetch(
                             "/api/projects/sprint-items",
                             {
                               method: "PATCH",

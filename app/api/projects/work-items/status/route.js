@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../../code-gigs/supabase-client";
 
 const ALLOWED_STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE"]; // global lifecycle
 
@@ -7,6 +7,11 @@ export async function PATCH(req) {
   try {
     const body = await req.json();
     const { workItemId, status } = body;
+
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!workItemId) {
       return NextResponse.json({ error: "workItemId is required" }, { status: 400 });
@@ -17,7 +22,7 @@ export async function PATCH(req) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
       .from("work_items")

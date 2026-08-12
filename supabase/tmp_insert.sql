@@ -1,0 +1,1 @@
+INSERT INTO projects (user_id, name, client_message) VALUES ('ci_auto_user', 'CI Inserted Project', 'Inserted by automated test') RETURNING id;

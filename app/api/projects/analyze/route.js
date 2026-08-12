@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../code-gigs/supabase-client";
 import { analyzeProjectFromClientMessage } from "../../../../code-gigs/gemini-json-client";
 
 import { calculateComplexity } from "../../../../code-gigs/complexity-calculator";
@@ -36,15 +36,20 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { projectId } = body;
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
     const { data: project, error: fetchError } = await supabase
       .from("projects")
       .select("id, client_message")
       .eq("id", projectId)
+      .eq("user_id", user.id)
       .single();
 
     if (fetchError || !project) {
@@ -62,7 +67,8 @@ export async function POST(req) {
     const { error: updateError } = await supabase
       .from("projects")
       .update({ analysis: fullAnalysis })
-      .eq("id", projectId);
+      .eq("id", projectId)
+      .eq("user_id", user.id);
 
     if (updateError) {
       throw updateError;

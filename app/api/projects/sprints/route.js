@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../code-gigs/supabase-client";
 
 // Very small sprint model for Phase 6:
 // - One "current" sprint per project, using status = 'ACTIVE'.
@@ -9,12 +9,17 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
 
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!projectId) {
     return NextResponse.json({ error: "projectId is required" }, { status: 400 });
   }
 
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from("sprints")
       .select("id, project_id, name, goal, status, start_date, end_date, created_at")
@@ -38,6 +43,11 @@ export async function POST(req) {
     const body = await req.json();
     const { projectId, name, goal, startDate, endDate } = body || {};
 
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
@@ -45,7 +55,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Sprint name is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     // Enforce a single ACTIVE sprint per project for this phase.
     const { data: existingActive, error: activeError } = await supabase

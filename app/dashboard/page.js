@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthGuard, getLocalUser } from "../../components/AuthGuard";
+import { AuthGuard } from "../../components/AuthGuard";
 import { Button } from "../../components/ui/button";
 import {
   Card,
@@ -11,12 +11,12 @@ import {
   CardDescription,
   CardContent,
 } from "../../components/ui/card";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { AnalogMeter } from "../../components/ui/analog-meter";
 import {
   formatSupabaseError,
   getSupabaseClient,
 } from "../../code-gigs/supabase-client";
-import { LOCAL_USER_KEY } from "../../code-gigs/auth-route-guard";
 
 function useProjects(userId) {
   const [projects, setProjects] = useState([]);
@@ -60,18 +60,23 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const u = getLocalUser();
-    if (!u) return;
-    setUser(u);
+    const supabase = getSupabaseClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data?.user || null);
+    });
   }, []);
 
   const { projects, loading, error } = useProjects(user?.id);
 
-  function handleLogout() {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(LOCAL_USER_KEY);
-      router.push("/login");
-    }
+  const readinessSeries = projects.map((p) => ({
+    name: p.name.slice(0, 12) || "Project",
+    readiness: p.analysis?.readiness ?? 0,
+  }));
+
+  async function handleLogout() {
+    const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   const total = projects.length;
@@ -94,7 +99,7 @@ export default function DashboardPage() {
                   Dashboard
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
-                  Welcome{user ? `, ${user.name}` : ""}. Turn client messages
+                  Welcome{user ? `, ${user.email}` : ""}. Turn client messages
                   into execution-ready projects with a cleaner, more responsive
                   workspace.
                 </p>
@@ -191,11 +196,42 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Your projects</CardTitle>
             <CardDescription>
-              Projects are stored in Supabase using your demo user id from
-              localStorage.
+              Projects are stored in Supabase and scoped to your authenticated user account.
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {!loading && !error && projects.length > 0 && (
+              <div className="mb-6 h-40 rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={readinessSeries} margin={{ left: -20, right: 0, top: 10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="readinessGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="name" tickLine={false} tickMargin={6} tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                    <YAxis domain={[0, 100]} hide />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#020617",
+                        borderRadius: "0.75rem",
+                        border: "1px solid rgba(148, 163, 184, 0.4)",
+                        fontSize: "0.75rem",
+                      }}
+                      formatter={(value) => [`${value}%`, "Readiness"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="readiness"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      fill="url(#readinessGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
             {loading && (
               <p className="text-sm text-slate-400">Loading projects…</p>
             )}

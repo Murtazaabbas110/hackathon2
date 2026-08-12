@@ -1,16 +1,19 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set");
+    throw new Error("GEMINI_API_KEY or GOOGLE_API_KEY is not set");
   }
-  return new GoogleGenerativeAI(apiKey);
+
+  // The GoogleGenerativeAI constructor accepts an options object with an apiKey property.
+  // Passing the raw string can result in unsupported credential types being sent.
+  return new GoogleGenerativeAI({ apiKey });
 }
 
 function getGeminiModel(genAI) {
   return genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini--flash",
+    model: process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini--flash",
   });
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthGuard, getLocalUser } from "../../../components/AuthGuard";
+import { AuthGuard } from "../../../components/AuthGuard";
 import { Button } from "../../../components/ui/button";
 import {
   Card,
@@ -15,6 +15,7 @@ import {
   formatSupabaseError,
   getSupabaseClient,
 } from "../../../code-gigs/supabase-client";
+import { authFetch } from "../../../code-gigs/supabase-client";
 import { AnalogMeter } from "../../../components/ui/analog-meter";
 
 export default function NewProjectPage() {
@@ -26,7 +27,10 @@ export default function NewProjectPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    setUser(getLocalUser());
+    const supabase = getSupabaseClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data?.user || null);
+    });
   }, []);
 
   async function handleSubmit(e) {
@@ -48,7 +52,7 @@ export default function NewProjectPage() {
         .single();
       if (error) throw error;
 
-      // Kick off AI analysis via API route
+      // Kick off AI analysis via API route (authenticated)
       await fetch("/api/projects/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

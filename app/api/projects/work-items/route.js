@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import { getSupabaseServerClient, getUserFromRequest } from "../../../../code-gigs/supabase-client";
 import { generateWorkItemsFromAnalysis } from "../../../../code-gigs/work-item-generator";
 
 function validateAnalysisForWorkItems(analysis) {
@@ -13,16 +13,22 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { projectId } = body;
+
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseServerClient();
 
     const { data: project, error: projectError } = await supabase
       .from("projects")
       .select("id, analysis")
       .eq("id", projectId)
+      .eq("user_id", user.id)
       .single();
 
     if (projectError || !project) {

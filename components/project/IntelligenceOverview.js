@@ -134,6 +134,29 @@ export function IntelligenceOverview({ analysis }) {
             )}
           </div>
         </div>
+        {/* Small distribution bars */}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Requirements', value: requirementsCount, tone: 'emerald' },
+            { label: 'Ambiguities', value: ambiguitiesCount, tone: 'amber' },
+            { label: 'Risks', value: risksCount, tone: 'rose' },
+          ].map((s) => {
+            const max = Math.max(requirementsCount, ambiguitiesCount, risksCount, 1);
+            const pct = Math.round((s.value / max) * 100);
+            const color = s.tone === 'emerald' ? 'bg-emerald-400' : s.tone === 'amber' ? 'bg-amber-400' : 'bg-rose-400';
+            return (
+              <div key={s.label} className="space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <div>{s.label}</div>
+                  <div className="font-semibold text-slate-100">{s.value}</div>
+                </div>
+                <div className="h-2 w-full rounded-full bg-white/5">
+                  <div className={`${color} h-2 rounded-full`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

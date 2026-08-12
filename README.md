@@ -1,3 +1,13 @@
+# ScopeFlow (Phase 1–5)
+
+Phase 5 adds:
+
+- Kanban execution view for projects using the `KANBAN` methodology.
+- Drag-and-drop work item movement across Backlog, To Do, In Progress, Review, and Done using dnd-kit.
+- Supabase-persisted work item status updates and correct reload of statuses.
+- Deterministic project progress calculation from completed (Done) work items.
+- Polished loading, empty, and error states for the Kanban board.
+
 # ScopeFlow (Phase 1–4)
 
 Runnable MVP-in-progress for ScopeFlow — an AI-powered project planning and execution app.

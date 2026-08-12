@@ -9,6 +9,7 @@ import { getSupabaseClient } from "../../../code-gigs/supabase-client";
 import { IntelligenceOverview } from "../../../components/project/IntelligenceOverview";
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
 import { MethodologySelector } from "../../../components/project/MethodologySelector";
+import { KanbanBoard } from "../../../components/project/KanbanBoard";
 
 export default function ProjectWorkspacePage() {
   const router = useRouter();
@@ -48,7 +49,21 @@ export default function ProjectWorkspacePage() {
           .eq("project_id", projectId)
           .order("created_at", { ascending: true });
         if (wiError) throw wiError;
-        if (isMounted) setWorkItems(wi || []);
+        const normalized = (wi || []).map(item => ({
+          ...item,
+          acceptance_criteria: Array.isArray(item.acceptance_criteria)
+            ? item.acceptance_criteria
+            : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
+            ? (() => {
+                try {
+                  return JSON.parse(item.acceptance_criteria);
+                } catch {
+                  return [];
+                }
+              })()
+            : [],
+        }));
+        if (isMounted) setWorkItems(normalized);
       } catch (e) {
         console.error(e);
         if (isMounted) setError(e.message || "Failed to load project");
@@ -104,7 +119,21 @@ export default function ProjectWorkspacePage() {
         .eq("project_id", projectId)
         .order("created_at", { ascending: true });
       if (wiError) throw wiError;
-      setWorkItems(wi || []);
+      const normalized = (wi || []).map(item => ({
+        ...item,
+        acceptance_criteria: Array.isArray(item.acceptance_criteria)
+          ? item.acceptance_criteria
+          : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
+          ? (() => {
+              try {
+                return JSON.parse(item.acceptance_criteria);
+              } catch {
+                return [];
+              }
+            })()
+          : [],
+      }));
+      setWorkItems(normalized);
     } catch (e) {
       console.error(e);
       setWorkItemsError(e.message || "Failed to generate work items");
@@ -277,6 +306,64 @@ export default function ProjectWorkspacePage() {
                   initialMethodology={project.methodology}
                   hasWorkItems={workItems.length > 0}
                 />
+
+                {project.methodology === "KANBAN" && (
+                  <div className="mt-4">
+                    <KanbanBoard
+                      workItems={workItems}
+                      loading={workItemsLoading}
+                      error={workItemsError}
+                      onStatusChange={async (workItemId, status) => {
+                        try {
+                          // optimistic update
+                          setWorkItems(prev =>
+                            prev.map(item =>
+                              item.id === workItemId ? { ...item, status } : item
+                            )
+                          );
+                          const res = await fetch("/api/projects/work-items/status", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ workItemId, status })
+                          });
+                          if (!res.ok) {
+                            const json = await res.json().catch(() => ({}));
+                            throw new Error(json.error || "Failed to update status");
+                          }
+                        } catch (e) {
+                          console.error(e);
+                          setWorkItemsError(e.message || "Failed to update work item status");
+                          // revert optimistic update on error by reloading from Supabase
+                          try {
+                            const supabase = getSupabaseClient();
+                            const { data: wi } = await supabase
+                              .from("work_items")
+                              .select("id, epic, title, description, priority, status, acceptance_criteria, dependencies")
+                              .eq("project_id", projectId)
+                              .order("created_at", { ascending: true });
+                            const normalized = (wi || []).map(item => ({
+                              ...item,
+                              acceptance_criteria: Array.isArray(item.acceptance_criteria)
+                                ? item.acceptance_criteria
+                                : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
+                                ? (() => {
+                                    try {
+                                      return JSON.parse(item.acceptance_criteria);
+                                    } catch {
+                                      return [];
+                                    }
+                                  })()
+                                : [],
+                            }));
+                            setWorkItems(normalized);
+                          } catch {
+                            // ignore secondary failure
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <IntelligenceSectionList

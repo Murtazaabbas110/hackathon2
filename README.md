@@ -1,4 +1,15 @@
-# ScopeFlow (Phase 1–5)
+# ScopeFlow (Phase 1–6)
+
+Phase 6 adds (on top of Phase 5):
+
+- Agile execution view for projects using the `AGILE` methodology.
+- Product backlog derived from work items that are not in the current sprint.
+- Sprint creation and persistence in Supabase (`sprints` table).
+- Per-sprint work item membership via `work_items.sprint_id`.
+- Per-sprint execution statuses (`sprint_status`: `TODO`, `IN_PROGRESS`, `DONE`).
+- Sprint progress calculation from `DONE` items in the active sprint.
+- Supabase persistence and optimistic updates for sprint membership and sprint item status.
+- Polished loading, empty, and error states for backlog, sprint creation, and Agile board.
 
 Phase 5 adds:
 
@@ -73,6 +84,9 @@ create table work_items (
   description text,
   priority text,
   status text,
+  -- Agile-specific fields for Phase 6
+  sprint_id uuid references sprints(id) on delete set null,
+  sprint_status text,
   acceptance_criteria text,
   dependencies jsonb,
   created_at timestamptz default now(),

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../../code-gigs/supabase-client";
 
-const ALLOWED_STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE"];
+const ALLOWED_STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE"]; // global lifecycle
 
 export async function PATCH(req) {
   try {

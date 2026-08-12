@@ -10,6 +10,7 @@ import { IntelligenceOverview } from "../../../components/project/IntelligenceOv
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
 import { MethodologySelector } from "../../../components/project/MethodologySelector";
 import { KanbanBoard } from "../../../components/project/KanbanBoard";
+import { AgileBoard } from "../../../components/project/AgileBoard";
 
 export default function ProjectWorkspacePage() {
   const router = useRouter();
@@ -24,6 +25,10 @@ export default function ProjectWorkspacePage() {
   const [workItemsLoading, setWorkItemsLoading] = useState(true);
   const [workItemsError, setWorkItemsError] = useState(null);
   const [generatingWorkItems, setGeneratingWorkItems] = useState(false);
+  const [sprints, setSprints] = useState([]);
+  const [sprintsLoading, setSprintsLoading] = useState(true);
+  const [sprintsError, setSprintsError] = useState(null);
+  const [creatingSprint, setCreatingSprint] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -33,6 +38,8 @@ export default function ProjectWorkspacePage() {
       setError(null);
       setWorkItemsLoading(true);
       setWorkItemsError(null);
+      setSprintsLoading(true);
+      setSprintsError(null);
       try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
@@ -45,10 +52,17 @@ export default function ProjectWorkspacePage() {
 
         const { data: wi, error: wiError } = await supabase
           .from("work_items")
-          .select("id, epic, title, description, priority, status, acceptance_criteria, dependencies")
+          .select("id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies")
           .eq("project_id", projectId)
           .order("created_at", { ascending: true });
         if (wiError) throw wiError;
+
+        const { data: sprintsData, error: sprintsErr } = await supabase
+          .from("sprints")
+          .select("id, project_id, name, goal, status, start_date, end_date, created_at")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: true });
+        if (sprintsErr) throw sprintsErr;
         const normalized = (wi || []).map(item => ({
           ...item,
           acceptance_criteria: Array.isArray(item.acceptance_criteria)
@@ -64,12 +78,14 @@ export default function ProjectWorkspacePage() {
             : [],
         }));
         if (isMounted) setWorkItems(normalized);
+        if (isMounted) setSprints(sprintsData || []);
       } catch (e) {
         console.error(e);
         if (isMounted) setError(e.message || "Failed to load project");
       } finally {
         if (isMounted) setLoading(false);
         if (isMounted) setWorkItemsLoading(false);
+        if (isMounted) setSprintsLoading(false);
       }
     }
     load();
@@ -115,7 +131,7 @@ export default function ProjectWorkspacePage() {
       const supabase = getSupabaseClient();
       const { data: wi, error: wiError } = await supabase
         .from("work_items")
-        .select("id, epic, title, description, priority, status, acceptance_criteria, dependencies")
+        .select("id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies")
         .eq("project_id", projectId)
         .order("created_at", { ascending: true });
       if (wiError) throw wiError;
@@ -359,6 +375,105 @@ export default function ProjectWorkspacePage() {
                           } catch {
                             // ignore secondary failure
                           }
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {project.methodology === "AGILE" && (
+                  <div className="mt-4">
+                    <AgileBoard
+                      currentSprint={sprints.find(s => s.status === "ACTIVE") || null}
+                      backlogItems={workItems.filter(w => !w.sprint_id)}
+                      sprintItems={workItems.filter(w => w.sprint_id && w.sprint_status)}
+                      loading={workItemsLoading || sprintsLoading}
+                      error={workItemsError || sprintsError}
+                      creatingSprint={creatingSprint}
+                      onCreateSprint={async () => {
+                        if (!projectId) return;
+                        setCreatingSprint(true);
+                        setSprintsError(null);
+                        try {
+                          const res = await fetch("/api/projects/sprints", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ projectId, name: "Sprint 1" })
+                          });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json.error || "Failed to create sprint");
+                          setSprints(prev => [...prev, json.sprint]);
+                        } catch (e) {
+                          console.error(e);
+                          setSprintsError(e.message || "Failed to create sprint");
+                        } finally {
+                          setCreatingSprint(false);
+                        }
+                      }}
+                      onAddToSprint={async item => {
+                        const current = sprints.find(s => s.status === "ACTIVE");
+                        if (!current) return;
+                        // optimistic update
+                        setWorkItems(prev =>
+                          prev.map(w =>
+                            w.id === item.id
+                              ? { ...w, sprint_id: current.id, sprint_status: "TODO" }
+                              : w
+                          )
+                        );
+                        try {
+                          const res = await fetch("/api/projects/sprint-items", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ workItemId: item.id, sprintId: current.id })
+                          });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json.error || "Failed to add item to sprint");
+                        } catch (e) {
+                          console.error(e);
+                          setWorkItemsError(e.message || "Failed to add item to sprint");
+                        }
+                      }}
+                      onMoveToBacklog={async item => {
+                        // optimistic update
+                        setWorkItems(prev =>
+                          prev.map(w =>
+                            w.id === item.id
+                              ? { ...w, sprint_id: null, sprint_status: null }
+                              : w
+                          )
+                        );
+                        try {
+                          const res = await fetch("/api/projects/sprint-items", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ workItemId: item.id })
+                          });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json.error || "Failed to move item to backlog");
+                        } catch (e) {
+                          console.error(e);
+                          setWorkItemsError(e.message || "Failed to move item to backlog");
+                        }
+                      }}
+                      onStatusChange={async (workItemId, sprintStatus) => {
+                        // optimistic update
+                        setWorkItems(prev =>
+                          prev.map(item =>
+                            item.id === workItemId ? { ...item, sprint_status: sprintStatus } : item
+                          )
+                        );
+                        try {
+                          const res = await fetch("/api/projects/sprint-items", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ workItemId, sprintStatus })
+                          });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json.error || "Failed to update sprint status");
+                        } catch (e) {
+                          console.error(e);
+                          setWorkItemsError(e.message || "Failed to update sprint status");
                         }
                       }}
                     />

@@ -10,18 +10,20 @@ import {
   CardContent,
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { getLocalUser } from "../components/AuthGuard";
 import { AnalogMeter } from "../components/ui/analog-meter";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import { getSupabaseClient } from "../code-gigs/supabase-client";
 
 export default function LandingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const user = getLocalUser();
-
-    if (user) {
-      router.replace("/dashboard");
-    }
+    const supabase = getSupabaseClient();
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session) {
+        router.replace("/dashboard");
+      }
+    });
   }, [router]);
 
   return (
@@ -48,8 +50,8 @@ export default function LandingPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => router.push("/login")} size="lg">
-                Continue to demo
+              <Button onClick={() => router.push("/signup")} size="lg">
+                Get started free
               </Button>
 
               <Button
@@ -57,7 +59,7 @@ export default function LandingPage() {
                 size="lg"
                 onClick={() => router.push("/login")}
               >
-                Try it with a client message
+                Sign in to workspace
               </Button>
             </div>
 
@@ -170,6 +172,53 @@ export default function LandingPage() {
               </CardContent>
             </Card>
           </section>
+        </div>
+        {/* Additional landing content */}
+        <div className="mt-10 grid gap-8 lg:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="text-lg font-semibold">How it works</h3>
+            <p className="mt-3 text-sm text-slate-300">
+              Paste a messy client brief, run the AI analysis, and get a
+              structured project with requirements, risks, and execution-ready
+              work items.
+            </p>
+            <ol className="mt-4 space-y-2 text-sm text-slate-400">
+              <li>1. Paste client message</li>
+              <li>2. Run AI analysis (server-side)</li>
+              <li>3. Generate work items</li>
+              <li>4. Choose Kanban or Agile</li>
+            </ol>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="text-lg font-semibold">Why ScopeFlow</h3>
+            <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              <li>Faster scoping from unstructured input</li>
+              <li>Deterministic readiness & complexity signals</li>
+              <li>Exportable work items and execution boards</li>
+            </ul>
+            <div className="mt-4 h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie dataKey="value" data={[{ name: 'Low', value: 40 }, { name: 'Medium', value: 35 }, { name: 'High', value: 25 }]} innerRadius={28} outerRadius={48} paddingAngle={2}>
+                    <Cell fill="#10b981" />
+                    <Cell fill="#f59e0b" />
+                    <Cell fill="#ef4444" />
+                  </Pie>
+                  <Tooltip wrapperStyle={{ backgroundColor: '#071027', borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="text-lg font-semibold">Get started</h3>
+            <p className="mt-3 text-sm text-slate-300">Create a free workspace and run your first analysis in minutes.</p>
+            <div className="mt-4 flex gap-3">
+              <Button onClick={() => router.push('/signup')}>Sign up</Button>
+              <Button variant="outline" onClick={() => router.push('/projects/new')}>Create project</Button>
+            </div>
+          </div>
         </div>
       </section>
     </div>

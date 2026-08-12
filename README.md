@@ -62,7 +62,9 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ## Database schema (Supabase)
 
-Create tables roughly equivalent to:
+Create the tables defined in [supabase/schema.sql](supabase/schema.sql). That file is the source of truth for the app's Supabase schema and matches the queries used by the dashboard, project workspace, and API routes.
+
+The expected tables are roughly equivalent to:
 
 ```sql
 create table projects (
@@ -107,6 +109,8 @@ create table sprints (
 ```
 
 This schema is intentionally simple and can be evolved in later phases.
+
+If you see an error like "Could not find the table 'public.projects' in the schema cache", the Supabase project has not been initialized with this schema yet.
 
 ## Phase 3 – AI-Powered Work Item Generation
 

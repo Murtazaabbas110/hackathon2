@@ -7,11 +7,22 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragOverlay
+  DragOverlay,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "../ui/card";
+import { AnalogMeter } from "../ui/analog-meter";
 
 const STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE"];
 
@@ -20,7 +31,7 @@ const STATUS_CONFIG = {
   TODO: { label: "To Do", tone: "info" },
   IN_PROGRESS: { label: "In Progress", tone: "warning" },
   REVIEW: { label: "Review", tone: "accent" },
-  DONE: { label: "Done", tone: "success" }
+  DONE: { label: "Done", tone: "success" },
 };
 
 function statusToLabel(status) {
@@ -45,8 +56,8 @@ function toneClasses(tone) {
 function WorkItemCard({ item, isDragging = false }) {
   return (
     <div
-      className={`rounded-md border bg-slate-950/80 p-3 text-xs shadow-sm transition
-        ${isDragging ? "border-emerald-400/70 shadow-lg shadow-emerald-900/40" : "border-slate-800/70"}
+      className={`rounded-2xl border bg-white/5 p-3 text-xs shadow-sm transition
+        ${isDragging ? "border-emerald-400/70 shadow-lg shadow-emerald-900/40" : "border-white/10"}
       `}
     >
       <div className="flex items-start justify-between gap-2">
@@ -56,24 +67,31 @@ function WorkItemCard({ item, isDragging = false }) {
           </p>
           <p className="text-sm font-semibold text-slate-100">{item.title}</p>
           {item.description && (
-            <p className="text-[11px] text-slate-300 line-clamp-3">{item.description}</p>
+            <p className="text-[11px] text-slate-300 line-clamp-3">
+              {item.description}
+            </p>
           )}
-          {Array.isArray(item.acceptance_criteria) && item.acceptance_criteria.length > 0 && (
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300">
-              {item.acceptance_criteria.slice(0, 3).map((ac, idx) => (
-                <li key={idx}>{ac}</li>
-              ))}
-              {item.acceptance_criteria.length > 3 && (
-                <li className="text-slate-500">+{item.acceptance_criteria.length - 3} more…</li>
-              )}
-            </ul>
-          )}
+          {Array.isArray(item.acceptance_criteria) &&
+            item.acceptance_criteria.length > 0 && (
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300">
+                {item.acceptance_criteria.slice(0, 3).map((ac, idx) => (
+                  <li key={idx}>{ac}</li>
+                ))}
+                {item.acceptance_criteria.length > 3 && (
+                  <li className="text-slate-500">
+                    +{item.acceptance_criteria.length - 3} more…
+                  </li>
+                )}
+              </ul>
+            )}
         </div>
         <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
           <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide">
             {item.priority || "MEDIUM"}
           </span>
-          <span className="block text-[10px] text-slate-500">{statusToLabel(item.status)}</span>
+          <span className="block text-[10px] text-slate-500">
+            {statusToLabel(item.status)}
+          </span>
         </div>
       </div>
     </div>
@@ -81,17 +99,30 @@ function WorkItemCard({ item, isDragging = false }) {
 }
 
 function SortableWorkItem({ item }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: item.id,
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition
+    transition,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing"
+    >
       <WorkItemCard item={item} isDragging={isDragging} />
     </div>
   );
@@ -102,7 +133,7 @@ function Column({ id, title, items, isOver, children }) {
 
   return (
     <div
-      className={`flex h-full min-h-[260px] flex-col rounded-lg border bg-slate-950/40 p-2 text-xs transition ${
+      className={`flex h-full min-h-[260px] flex-col rounded-2xl border p-3 text-xs transition ${
         isOver ? "border-emerald-400/60 bg-emerald-500/5" : toneClasses(tone)
       }`}
     >
@@ -118,7 +149,9 @@ function Column({ id, title, items, isOver, children }) {
       </div>
       <div className="flex-1 space-y-2 overflow-auto pr-1">
         {items.length === 0 && (
-          <p className="text-[11px] italic text-slate-500">Drop work items here.</p>
+          <p className="text-[11px] italic text-slate-500">
+            Drop work items here.
+          </p>
         )}
         {children}
       </div>
@@ -133,12 +166,12 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }
-    })
+      activationConstraint: { distance: 5 },
+    }),
   );
 
   const itemsByStatus = useMemo(() => {
-    const map = Object.fromEntries(STATUSES.map(s => [s, []]));
+    const map = Object.fromEntries(STATUSES.map((s) => [s, []]));
     for (const item of workItems || []) {
       const status = STATUSES.includes(item.status) ? item.status : "BACKLOG";
       map[status].push(item);
@@ -147,14 +180,17 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
   }, [workItems]);
 
   const activeItem = useMemo(
-    () => (activeId ? (workItems || []).find(i => i.id === activeId) || null : null),
-    [activeId, workItems]
+    () =>
+      activeId
+        ? (workItems || []).find((i) => i.id === activeId) || null
+        : null,
+    [activeId, workItems],
   );
 
   function handleDragStart(event) {
     const { active } = event;
     setActiveId(active.id);
-    const item = (workItems || []).find(i => i.id === active.id);
+    const item = (workItems || []).find((i) => i.id === active.id);
     setActiveColumn(item?.status || null);
   }
 
@@ -181,7 +217,7 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
       return;
     }
 
-    const item = (workItems || []).find(i => i.id === active.id);
+    const item = (workItems || []).find((i) => i.id === active.id);
     if (!item || item.status === targetColumn) {
       setActiveId(null);
       return;
@@ -197,7 +233,7 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
   }
 
   const total = workItems?.length || 0;
-  const done = workItems?.filter(w => w.status === "DONE").length || 0;
+  const done = workItems?.filter((w) => w.status === "DONE").length || 0;
   const progress = total ? Math.round((done / total) * 100) : 0;
 
   return (
@@ -209,23 +245,18 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
               Kanban execution
             </CardTitle>
             <CardDescription className="text-xs text-slate-400">
-              Drag work items across columns to move them from backlog to done. Progress is calculated
-              deterministically from completed items.
+              Drag work items across columns to move them from backlog to done.
+              Progress is calculated deterministically from completed items.
             </CardDescription>
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400">Progress</span>
-              <span className="rounded-full bg-slate-950/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
-                {progress}%
-              </span>
-            </div>
-            <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-800">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            <AnalogMeter
+              value={progress}
+              label="Progress"
+              sublabel="Completed work items"
+              tone="emerald"
+              size="sm"
+            />
           </div>
         </div>
       </CardHeader>
@@ -238,7 +269,8 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
         )}
         {!loading && !error && (!workItems || workItems.length === 0) && (
           <p className="text-slate-400">
-            No work items available. Generate work items from the analysis to start executing in Kanban.
+            No work items available. Generate work items from the analysis to
+            start executing in Kanban.
           </p>
         )}
         {!loading && !error && workItems && workItems.length > 0 && (
@@ -251,10 +283,10 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
             onDragCancel={handleDragCancel}
           >
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-              {STATUSES.map(status => (
+              {STATUSES.map((status) => (
                 <SortableContext
                   key={status}
-                  items={itemsByStatus[status].map(i => i.id)}
+                  items={itemsByStatus[status].map((i) => i.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div
@@ -269,7 +301,7 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
                       items={itemsByStatus[status]}
                       isOver={overColumn === status}
                     >
-                      {itemsByStatus[status].map(item => (
+                      {itemsByStatus[status].map((item) => (
                         <SortableWorkItem key={item.id} item={item} />
                       ))}
                     </Column>
@@ -278,7 +310,11 @@ export function KanbanBoard({ workItems, loading, error, onStatusChange }) {
               ))}
             </div>
 
-            <DragOverlay>{activeItem ? <WorkItemCard item={activeItem} isDragging /> : null}</DragOverlay>
+            <DragOverlay>
+              {activeItem ? (
+                <WorkItemCard item={activeItem} isDragging />
+              ) : null}
+            </DragOverlay>
           </DndContext>
         )}
       </CardContent>

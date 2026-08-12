@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "../ui/card";
 import { Button } from "../ui/button";
-import { CheckCircle2, KanbanSquare, Sprint } from "lucide-react";
+import { CheckCircle2, KanbanSquare, Timer } from "lucide-react";
 
 const ALLOWED_METHODS = ["KANBAN", "AGILE"];
 
@@ -20,7 +26,7 @@ const OPTIONS = [
     tagline: "Continuous flow",
     description:
       "Continuous workflow for teams that want to move work through stages without fixed sprints.",
-    icon: KanbanSquare
+    icon: KanbanSquare,
   },
   {
     id: "AGILE",
@@ -28,11 +34,15 @@ const OPTIONS = [
     tagline: "Sprint-based",
     description:
       "Sprint-based execution for teams that want structured iterations and focused delivery cycles.",
-    icon: Sprint
-  }
+    icon: Timer,
+  },
 ];
 
-export function MethodologySelector({ projectId, initialMethodology, hasWorkItems }) {
+export function MethodologySelector({
+  projectId,
+  initialMethodology,
+  hasWorkItems,
+}) {
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -58,7 +68,7 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
       const res = await fetch("/api/projects/methodology", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, methodology: normalized })
+        body: JSON.stringify({ projectId, methodology: normalized }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -82,7 +92,8 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
             Execution methodology
           </CardTitle>
           <CardDescription className="text-xs text-slate-400">
-            Generate work items first. Once you have a backlog, you can choose how you want to execute.
+            Generate work items first. Once you have a backlog, you can choose
+            how you want to execute.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-xs text-slate-500">
@@ -100,7 +111,8 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
             Choose your execution method
           </CardTitle>
           <CardDescription className="text-xs text-slate-400">
-            Select how this project will run. This does not trigger any AI calls and can be changed later.
+            Select how this project will run. This does not trigger any AI calls
+            and can be changed later.
           </CardDescription>
         </div>
         {selected && (
@@ -112,7 +124,7 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
       </CardHeader>
       <CardContent className="space-y-3 text-xs">
         <div className="grid gap-3 md:grid-cols-2">
-          {OPTIONS.map(option => {
+          {OPTIONS.map((option) => {
             const Icon = option.icon;
             const isSelected = selected === option.id;
             return (
@@ -120,27 +132,35 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
                 key={option.id}
                 type="button"
                 onClick={() => setSelected(option.id)}
-                className={`group flex h-full flex-col items-start gap-2 rounded-lg border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
-                  ${isSelected ? "border-emerald-500/70 bg-emerald-500/5" : "border-slate-800/80 bg-slate-950/40 hover:border-slate-600/80 hover:bg-slate-900/80"}
+                className={`group flex h-full flex-col items-start gap-2 rounded-2xl border px-4 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
+                  ${isSelected ? "border-emerald-400/70 bg-emerald-400/10 shadow-lg shadow-emerald-950/20" : "border-white/10 bg-white/5 hover:border-slate-400/40 hover:bg-white/10"}
                 `}
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span
                       className={`flex h-7 w-7 items-center justify-center rounded-full border text-slate-200 transition
-                        ${isSelected ? "border-emerald-400 bg-emerald-500/10" : "border-slate-700 bg-slate-900/80 group-hover:border-slate-500"}
+                        ${isSelected ? "border-emerald-300 bg-emerald-400/15" : "border-white/10 bg-slate-950/80 group-hover:border-slate-400/50"}
                       `}
                     >
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
-                      <div className="text-xs font-semibold text-slate-100">{option.label}</div>
-                      <div className="text-[11px] text-slate-400">{option.tagline}</div>
+                      <div className="text-xs font-semibold text-slate-100">
+                        {option.label}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        {option.tagline}
+                      </div>
                     </div>
                   </div>
-                  {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                  {isSelected && (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  )}
                 </div>
-                <p className="text-[11px] leading-relaxed text-slate-300">{option.description}</p>
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  {option.description}
+                </p>
               </button>
             );
           })}
@@ -151,7 +171,8 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
 
         <div className="flex items-center justify-between gap-3 pt-1 text-[11px] text-slate-400">
           <p>
-            You can change the methodology later; it will be used to drive the execution views in upcoming phases.
+            You can change the methodology later; it will be used to drive the
+            execution views in upcoming phases.
           </p>
           <Button
             type="button"
@@ -161,7 +182,11 @@ export function MethodologySelector({ projectId, initialMethodology, hasWorkItem
             onClick={handleSave}
             className="h-8 px-3 text-xs"
           >
-            {saving ? "Saving…" : selected ? `Save ${selected}` : "Select a method"}
+            {saving
+              ? "Saving…"
+              : selected
+                ? `Save ${selected}`
+                : "Select a method"}
           </Button>
         </div>
       </CardContent>

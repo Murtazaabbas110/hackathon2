@@ -8,6 +8,12 @@ function getGeminiClient() {
   return new GoogleGenerativeAI(apiKey);
 }
 
+function getGeminiModel(genAI) {
+  return genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  });
+}
+
 function cleanJsonText(text) {
   return text
     .replace(/^```json/gim, "")
@@ -20,7 +26,8 @@ function validateWorkItem(item) {
   if (!item || typeof item !== "object") return false;
   if (typeof item.title !== "string" || !item.title.trim()) return false;
   if (typeof item.epic !== "string" || !item.epic.trim()) return false;
-  if (typeof item.description !== "string" || !item.description.trim()) return false;
+  if (typeof item.description !== "string" || !item.description.trim())
+    return false;
   if (!["HIGH", "MEDIUM", "LOW"].includes(item.priority)) return false;
   if (!Array.isArray(item.acceptanceCriteria)) return false;
   if (!Array.isArray(item.dependencies)) return false;
@@ -33,15 +40,24 @@ function normalizeWorkItem(raw) {
   const title = String(raw.title || raw.name || epic).trim();
   const description = String(raw.description || "").trim();
   const priorityRaw = String(raw.priority || "MEDIUM").toUpperCase();
-  const priority = ["HIGH", "MEDIUM", "LOW"].includes(priorityRaw) ? priorityRaw : "MEDIUM";
+  const priority = ["HIGH", "MEDIUM", "LOW"].includes(priorityRaw)
+    ? priorityRaw
+    : "MEDIUM";
   const acceptanceCriteria = Array.isArray(raw.acceptanceCriteria)
-    ? raw.acceptanceCriteria.map(c => String(c).trim()).filter(Boolean)
+    ? raw.acceptanceCriteria.map((c) => String(c).trim()).filter(Boolean)
     : [];
   const dependencies = Array.isArray(raw.dependencies)
-    ? raw.dependencies.map(d => String(d).trim()).filter(Boolean)
+    ? raw.dependencies.map((d) => String(d).trim()).filter(Boolean)
     : [];
 
-  const item = { epic, title, description, priority, acceptanceCriteria, dependencies };
+  const item = {
+    epic,
+    title,
+    description,
+    priority,
+    acceptanceCriteria,
+    dependencies,
+  };
   return validateWorkItem(item) ? item : null;
 }
 
@@ -51,7 +67,7 @@ export async function generateWorkItemsFromAnalysis(analysis) {
   }
 
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+  const model = getGeminiModel(genAI);
 
   const basePrompt = `You are an expert software project planner.
 Based ONLY on the provided project analysis JSON, generate between 8 and 20 concrete implementation work items.
@@ -92,9 +108,7 @@ Project analysis JSON:
     if (!Array.isArray(parsed)) {
       throw new Error("Gemini work item response must be a JSON array");
     }
-    const normalized = parsed
-      .map(normalizeWorkItem)
-      .filter(Boolean);
+    const normalized = parsed.map(normalizeWorkItem).filter(Boolean);
     if (!normalized.length) {
       throw new Error("Gemini returned no valid work items");
     }
@@ -104,7 +118,8 @@ Project analysis JSON:
   try {
     return await callOnce(basePrompt);
   } catch (e) {
-    const strictPrompt = basePrompt +
+    const strictPrompt =
+      basePrompt +
       "\n\nYour previous response was invalid. Respond again with ONLY a JSON array of work item objects, no markdown, no explanation.";
     return await callOnce(strictPrompt);
   }

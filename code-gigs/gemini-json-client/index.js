@@ -8,9 +8,15 @@ function getGeminiClient() {
   return new GoogleGenerativeAI(apiKey);
 }
 
+function getGeminiModel(genAI) {
+  return genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || "gemini--flash",
+  });
+}
+
 export async function analyzeProjectFromClientMessage(clientMessage) {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+  const model = getGeminiModel(genAI);
 
   const prompt = `You are an expert project analyst. Analyze the following client message and return JSON with this exact structure:
 {
@@ -65,7 +71,9 @@ Client message:
     return parsed;
   } catch (e) {
     // Retry once with a stricter instruction
-    const strictPrompt = prompt + "\n\nYour previous response was invalid JSON. Respond with ONLY valid JSON, no markdown or explanation.";
+    const strictPrompt =
+      prompt +
+      "\n\nYour previous response was invalid JSON. Respond with ONLY valid JSON, no markdown or explanation.";
     const result = await model.generateContent(strictPrompt);
     const text = result.response.text();
     const cleaned = text

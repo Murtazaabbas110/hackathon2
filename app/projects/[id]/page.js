@@ -3,14 +3,24 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AuthGuard } from "../../../components/AuthGuard";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../../components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
-import { getSupabaseClient } from "../../../code-gigs/supabase-client";
+import {
+  formatSupabaseError,
+  getSupabaseClient,
+} from "../../../code-gigs/supabase-client";
 import { IntelligenceOverview } from "../../../components/project/IntelligenceOverview";
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
 import { MethodologySelector } from "../../../components/project/MethodologySelector";
 import { KanbanBoard } from "../../../components/project/KanbanBoard";
 import { AgileBoard } from "../../../components/project/AgileBoard";
+import { AnalogMeter } from "../../../components/ui/analog-meter";
 
 export default function ProjectWorkspacePage() {
   const router = useRouter();
@@ -52,36 +62,42 @@ export default function ProjectWorkspacePage() {
 
         const { data: wi, error: wiError } = await supabase
           .from("work_items")
-          .select("id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies")
+          .select(
+            "id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies",
+          )
           .eq("project_id", projectId)
           .order("created_at", { ascending: true });
         if (wiError) throw wiError;
 
         const { data: sprintsData, error: sprintsErr } = await supabase
           .from("sprints")
-          .select("id, project_id, name, goal, status, start_date, end_date, created_at")
+          .select(
+            "id, project_id, name, goal, status, start_date, end_date, created_at",
+          )
           .eq("project_id", projectId)
           .order("created_at", { ascending: true });
         if (sprintsErr) throw sprintsErr;
-        const normalized = (wi || []).map(item => ({
+        const normalized = (wi || []).map((item) => ({
           ...item,
           acceptance_criteria: Array.isArray(item.acceptance_criteria)
             ? item.acceptance_criteria
-            : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
-            ? (() => {
-                try {
-                  return JSON.parse(item.acceptance_criteria);
-                } catch {
-                  return [];
-                }
-              })()
-            : [],
+            : typeof item.acceptance_criteria === "string" &&
+                item.acceptance_criteria.trim().startsWith("[")
+              ? (() => {
+                  try {
+                    return JSON.parse(item.acceptance_criteria);
+                  } catch {
+                    return [];
+                  }
+                })()
+              : [],
         }));
         if (isMounted) setWorkItems(normalized);
         if (isMounted) setSprints(sprintsData || []);
       } catch (e) {
         console.error(e);
-        if (isMounted) setError(e.message || "Failed to load project");
+        if (isMounted)
+          setError(formatSupabaseError(e, "Failed to load project"));
       } finally {
         if (isMounted) setLoading(false);
         if (isMounted) setWorkItemsLoading(false);
@@ -102,14 +118,16 @@ export default function ProjectWorkspacePage() {
       const res = await fetch("/api/projects/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId })
+        body: JSON.stringify({ projectId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to analyze project");
-      setProject(prev => (prev ? { ...prev, analysis: json.analysis } : prev));
+      setProject((prev) =>
+        prev ? { ...prev, analysis: json.analysis } : prev,
+      );
     } catch (e) {
       console.error(e);
-      setAnalyzeError(e.message || "Failed to analyze project");
+      setAnalyzeError(formatSupabaseError(e, "Failed to analyze project"));
     } finally {
       setAnalyzing(false);
     }
@@ -123,36 +141,42 @@ export default function ProjectWorkspacePage() {
       const res = await fetch("/api/projects/work-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId })
+        body: JSON.stringify({ projectId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to generate work items");
+      if (!res.ok)
+        throw new Error(json.error || "Failed to generate work items");
       // Refresh from Supabase for full details
       const supabase = getSupabaseClient();
       const { data: wi, error: wiError } = await supabase
         .from("work_items")
-        .select("id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies")
+        .select(
+          "id, epic, title, description, priority, status, sprint_id, sprint_status, acceptance_criteria, dependencies",
+        )
         .eq("project_id", projectId)
         .order("created_at", { ascending: true });
       if (wiError) throw wiError;
-      const normalized = (wi || []).map(item => ({
+      const normalized = (wi || []).map((item) => ({
         ...item,
         acceptance_criteria: Array.isArray(item.acceptance_criteria)
           ? item.acceptance_criteria
-          : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
-          ? (() => {
-              try {
-                return JSON.parse(item.acceptance_criteria);
-              } catch {
-                return [];
-              }
-            })()
-          : [],
+          : typeof item.acceptance_criteria === "string" &&
+              item.acceptance_criteria.trim().startsWith("[")
+            ? (() => {
+                try {
+                  return JSON.parse(item.acceptance_criteria);
+                } catch {
+                  return [];
+                }
+              })()
+            : [],
       }));
       setWorkItems(normalized);
     } catch (e) {
       console.error(e);
-      setWorkItemsError(e.message || "Failed to generate work items");
+      setWorkItemsError(
+        formatSupabaseError(e, "Failed to generate work items"),
+      );
     } finally {
       setGeneratingWorkItems(false);
     }
@@ -160,34 +184,75 @@ export default function ProjectWorkspacePage() {
 
   return (
     <AuthGuard>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <button
-              type="button"
-              className="mb-2 text-xs text-slate-400 hover:text-slate-200"
-              onClick={() => router.push("/dashboard")}
-            >
-              
-              Back to dashboard
-            </button>
-            <h1 className="text-2xl font-semibold tracking-tight">{project?.name || "Project"}</h1>
-            <p className="text-sm text-slate-400">
-              Client message → AI analysis → project intelligence → work items.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={generateWorkItems}
-              disabled={generatingWorkItems || !project?.analysis}
-            >
-              {generatingWorkItems ? "Generating work items…" : workItems.length ? "Re-generate work items" : "Generate work items"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={triggerAnalysis} disabled={analyzing}>
-              {analyzing ? "Analyzing…" : project?.analysis ? "Re-run analysis" : "Run analysis"}
-            </Button>
+      <div className="space-y-6 sm:space-y-8">
+        <div className="surface-panel overflow-hidden p-0">
+          <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
+            <div className="space-y-4">
+              <button
+                type="button"
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 hover:border-sky-400/40 hover:bg-sky-400/10"
+                onClick={() => router.push("/dashboard")}
+              >
+                Back to dashboard
+              </button>
+              <div>
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
+                  {project?.name || "Project"}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
+                  Client message → AI analysis → project intelligence → work
+                  items.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={generateWorkItems}
+                  disabled={generatingWorkItems || !project?.analysis}
+                >
+                  {generatingWorkItems
+                    ? "Generating work items…"
+                    : workItems.length
+                      ? "Re-generate work items"
+                      : "Generate work items"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={triggerAnalysis}
+                  disabled={analyzing}
+                >
+                  {analyzing
+                    ? "Analyzing…"
+                    : project?.analysis
+                      ? "Re-run analysis"
+                      : "Run analysis"}
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <AnalogMeter
+                value={project?.analysis?.readiness ?? 0}
+                label="Readiness"
+                sublabel="How close this scope is to execution"
+                tone="emerald"
+                size="sm"
+              />
+              <AnalogMeter
+                value={
+                  project?.analysis?.complexity === "HIGH"
+                    ? 82
+                    : project?.analysis?.complexity === "MEDIUM"
+                      ? 52
+                      : 26
+                }
+                label="Complexity"
+                sublabel="A quick analog feel for scope size"
+                tone="amber"
+                size="sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -215,14 +280,15 @@ export default function ProjectWorkspacePage() {
                 <CardHeader>
                   <CardTitle>Analysis status</CardTitle>
                   <CardDescription>
-                    Run Gemini analysis to extract requirements and calculate complexity/readiness.
+                    Run Gemini analysis to extract requirements and calculate
+                    complexity/readiness.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm">
+                <CardContent className="space-y-4 text-sm">
                   {!project.analysis && !analyzing && (
                     <p className="text-slate-400">
-                      This project has not been analyzed yet. Run the analysis to generate structured project
-                      intelligence.
+                      This project has not been analyzed yet. Run the analysis
+                      to generate structured project intelligence.
                     </p>
                   )}
                   {analyzing && (
@@ -230,19 +296,24 @@ export default function ProjectWorkspacePage() {
                       Running Gemini analysis… This usually takes a few seconds.
                     </p>
                   )}
-                  {analyzeError && <p className="text-rose-400">{analyzeError}</p>}
+                  {analyzeError && (
+                    <p className="text-rose-400">{analyzeError}</p>
+                  )}
                   {project.analysis && !analyzing && (
-                    <div className="space-y-2">
-                      <p className="text-slate-200">{project.analysis.summary}</p>
+                    <div className="space-y-3">
+                      <p className="text-slate-200">
+                        {project.analysis.summary}
+                      </p>
                       <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full bg-slate-800 px-2 py-1 text-slate-200">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
                           Complexity: {project.analysis.complexity}
                         </span>
-                        <span className="rounded-full bg-slate-800 px-2 py-1 text-slate-200">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
                           Readiness: {project.analysis.readiness}%
                         </span>
-                        <span className="rounded-full bg-slate-800 px-2 py-1 text-slate-200">
-                          Requirements: {project.analysis.requirements?.length || 0}
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
+                          Requirements:{" "}
+                          {project.analysis.requirements?.length || 0}
                         </span>
                       </div>
                     </div>
@@ -260,11 +331,13 @@ export default function ProjectWorkspacePage() {
                     <div>
                       <CardTitle>Work items</CardTitle>
                       <CardDescription>
-                        AI-generated implementation tasks you can later execute in Kanban/Agile views.
+                        AI-generated implementation tasks you can later execute
+                        in Kanban/Agile views.
                       </CardDescription>
                     </div>
                     <div className="rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-slate-300">
-                      {workItems.length} {workItems.length === 1 ? "item" : "items"}
+                      {workItems.length}{" "}
+                      {workItems.length === 1 ? "item" : "items"}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
@@ -272,48 +345,62 @@ export default function ProjectWorkspacePage() {
                       <p className="text-xs text-rose-400">{workItemsError}</p>
                     )}
                     {workItemsLoading && !workItemsError && (
-                      <p className="text-xs text-slate-400">Loading work items…</p>
-                    )}
-                    {!workItemsLoading && !workItemsError && workItems.length === 0 && (
                       <p className="text-xs text-slate-400">
-                        No work items yet. Generate them from the analysis using the button above.
+                        Loading work items…
                       </p>
                     )}
-                    {!workItemsLoading && !workItemsError && workItems.length > 0 && (
-                      <div className="max-h-72 space-y-2 overflow-auto pr-1 text-xs">
-                        {workItems.map(item => (
-                          <div
-                            key={item.id}
-                            className="rounded-md border border-slate-800/70 bg-slate-950/40 p-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                                  {item.epic || "Epic"}
-                                </p>
-                                <p className="text-sm font-semibold text-slate-100">{item.title}</p>
-                                {item.description && (
-                                  <p className="text-slate-300">{item.description}</p>
-                                )}
-                                {Array.isArray(item.acceptance_criteria) && item.acceptance_criteria.length > 0 && (
-                                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300">
-                                    {item.acceptance_criteria.map((ac, idx) => (
-                                      <li key={idx}>{ac}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-                              <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
-                                <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px]">
-                                  {item.priority}
-                                </span>
-                                <div>{item.status}</div>
+                    {!workItemsLoading &&
+                      !workItemsError &&
+                      workItems.length === 0 && (
+                        <p className="text-xs text-slate-400">
+                          No work items yet. Generate them from the analysis
+                          using the button above.
+                        </p>
+                      )}
+                    {!workItemsLoading &&
+                      !workItemsError &&
+                      workItems.length > 0 && (
+                        <div className="max-h-72 space-y-2 overflow-auto pr-1 text-xs">
+                          {workItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-md border border-slate-800/70 bg-slate-950/40 p-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                    {item.epic || "Epic"}
+                                  </p>
+                                  <p className="text-sm font-semibold text-slate-100">
+                                    {item.title}
+                                  </p>
+                                  {item.description && (
+                                    <p className="text-slate-300">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                  {Array.isArray(item.acceptance_criteria) &&
+                                    item.acceptance_criteria.length > 0 && (
+                                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300">
+                                        {item.acceptance_criteria.map(
+                                          (ac, idx) => (
+                                            <li key={idx}>{ac}</li>
+                                          ),
+                                        )}
+                                      </ul>
+                                    )}
+                                </div>
+                                <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
+                                  <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px]">
+                                    {item.priority}
+                                  </span>
+                                  <div>{item.status}</div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
                   </CardContent>
                 </Card>
 
@@ -332,44 +419,66 @@ export default function ProjectWorkspacePage() {
                       onStatusChange={async (workItemId, status) => {
                         try {
                           // optimistic update
-                          setWorkItems(prev =>
-                            prev.map(item =>
-                              item.id === workItemId ? { ...item, status } : item
-                            )
+                          setWorkItems((prev) =>
+                            prev.map((item) =>
+                              item.id === workItemId
+                                ? { ...item, status }
+                                : item,
+                            ),
                           );
-                          const res = await fetch("/api/projects/work-items/status", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ workItemId, status })
-                          });
+                          const res = await fetch(
+                            "/api/projects/work-items/status",
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ workItemId, status }),
+                            },
+                          );
                           if (!res.ok) {
                             const json = await res.json().catch(() => ({}));
-                            throw new Error(json.error || "Failed to update status");
+                            throw new Error(
+                              json.error || "Failed to update status",
+                            );
                           }
                         } catch (e) {
                           console.error(e);
-                          setWorkItemsError(e.message || "Failed to update work item status");
+                          setWorkItemsError(
+                            formatSupabaseError(
+                              e,
+                              "Failed to update work item status",
+                            ),
+                          );
                           // revert optimistic update on error by reloading from Supabase
                           try {
                             const supabase = getSupabaseClient();
                             const { data: wi } = await supabase
                               .from("work_items")
-                              .select("id, epic, title, description, priority, status, acceptance_criteria, dependencies")
+                              .select(
+                                "id, epic, title, description, priority, status, acceptance_criteria, dependencies",
+                              )
                               .eq("project_id", projectId)
                               .order("created_at", { ascending: true });
-                            const normalized = (wi || []).map(item => ({
+                            const normalized = (wi || []).map((item) => ({
                               ...item,
-                              acceptance_criteria: Array.isArray(item.acceptance_criteria)
+                              acceptance_criteria: Array.isArray(
+                                item.acceptance_criteria,
+                              )
                                 ? item.acceptance_criteria
-                                : typeof item.acceptance_criteria === "string" && item.acceptance_criteria.trim().startsWith("[")
-                                ? (() => {
-                                    try {
-                                      return JSON.parse(item.acceptance_criteria);
-                                    } catch {
-                                      return [];
-                                    }
-                                  })()
-                                : [],
+                                : typeof item.acceptance_criteria ===
+                                      "string" &&
+                                    item.acceptance_criteria
+                                      .trim()
+                                      .startsWith("[")
+                                  ? (() => {
+                                      try {
+                                        return JSON.parse(
+                                          item.acceptance_criteria,
+                                        );
+                                      } catch {
+                                        return [];
+                                      }
+                                    })()
+                                  : [],
                             }));
                             setWorkItems(normalized);
                           } catch {
@@ -384,9 +493,13 @@ export default function ProjectWorkspacePage() {
                 {project.methodology === "AGILE" && (
                   <div className="mt-4">
                     <AgileBoard
-                      currentSprint={sprints.find(s => s.status === "ACTIVE") || null}
-                      backlogItems={workItems.filter(w => !w.sprint_id)}
-                      sprintItems={workItems.filter(w => w.sprint_id && w.sprint_status)}
+                      currentSprint={
+                        sprints.find((s) => s.status === "ACTIVE") || null
+                      }
+                      backlogItems={workItems.filter((w) => !w.sprint_id)}
+                      sprintItems={workItems.filter(
+                        (w) => w.sprint_id && w.sprint_status,
+                      )}
                       loading={workItemsLoading || sprintsLoading}
                       error={workItemsError || sprintsError}
                       creatingSprint={creatingSprint}
@@ -398,82 +511,137 @@ export default function ProjectWorkspacePage() {
                           const res = await fetch("/api/projects/sprints", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ projectId, name: "Sprint 1" })
+                            body: JSON.stringify({
+                              projectId,
+                              name: "Sprint 1",
+                            }),
                           });
                           const json = await res.json();
-                          if (!res.ok) throw new Error(json.error || "Failed to create sprint");
-                          setSprints(prev => [...prev, json.sprint]);
+                          if (!res.ok)
+                            throw new Error(
+                              json.error || "Failed to create sprint",
+                            );
+                          setSprints((prev) => [...prev, json.sprint]);
                         } catch (e) {
                           console.error(e);
-                          setSprintsError(e.message || "Failed to create sprint");
+                          setSprintsError(
+                            formatSupabaseError(e, "Failed to create sprint"),
+                          );
                         } finally {
                           setCreatingSprint(false);
                         }
                       }}
-                      onAddToSprint={async item => {
-                        const current = sprints.find(s => s.status === "ACTIVE");
+                      onAddToSprint={async (item) => {
+                        const current = sprints.find(
+                          (s) => s.status === "ACTIVE",
+                        );
                         if (!current) return;
                         // optimistic update
-                        setWorkItems(prev =>
-                          prev.map(w =>
+                        setWorkItems((prev) =>
+                          prev.map((w) =>
                             w.id === item.id
-                              ? { ...w, sprint_id: current.id, sprint_status: "TODO" }
-                              : w
-                          )
+                              ? {
+                                  ...w,
+                                  sprint_id: current.id,
+                                  sprint_status: "TODO",
+                                }
+                              : w,
+                          ),
                         );
                         try {
-                          const res = await fetch("/api/projects/sprint-items", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ workItemId: item.id, sprintId: current.id })
-                          });
+                          const res = await fetch(
+                            "/api/projects/sprint-items",
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                workItemId: item.id,
+                                sprintId: current.id,
+                              }),
+                            },
+                          );
                           const json = await res.json();
-                          if (!res.ok) throw new Error(json.error || "Failed to add item to sprint");
+                          if (!res.ok)
+                            throw new Error(
+                              json.error || "Failed to add item to sprint",
+                            );
                         } catch (e) {
                           console.error(e);
-                          setWorkItemsError(e.message || "Failed to add item to sprint");
+                          setWorkItemsError(
+                            formatSupabaseError(
+                              e,
+                              "Failed to add item to sprint",
+                            ),
+                          );
                         }
                       }}
-                      onMoveToBacklog={async item => {
+                      onMoveToBacklog={async (item) => {
                         // optimistic update
-                        setWorkItems(prev =>
-                          prev.map(w =>
+                        setWorkItems((prev) =>
+                          prev.map((w) =>
                             w.id === item.id
                               ? { ...w, sprint_id: null, sprint_status: null }
-                              : w
-                          )
+                              : w,
+                          ),
                         );
                         try {
-                          const res = await fetch("/api/projects/sprint-items", {
-                            method: "DELETE",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ workItemId: item.id })
-                          });
+                          const res = await fetch(
+                            "/api/projects/sprint-items",
+                            {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ workItemId: item.id }),
+                            },
+                          );
                           const json = await res.json();
-                          if (!res.ok) throw new Error(json.error || "Failed to move item to backlog");
+                          if (!res.ok)
+                            throw new Error(
+                              json.error || "Failed to move item to backlog",
+                            );
                         } catch (e) {
                           console.error(e);
-                          setWorkItemsError(e.message || "Failed to move item to backlog");
+                          setWorkItemsError(
+                            formatSupabaseError(
+                              e,
+                              "Failed to move item to backlog",
+                            ),
+                          );
                         }
                       }}
                       onStatusChange={async (workItemId, sprintStatus) => {
                         // optimistic update
-                        setWorkItems(prev =>
-                          prev.map(item =>
-                            item.id === workItemId ? { ...item, sprint_status: sprintStatus } : item
-                          )
+                        setWorkItems((prev) =>
+                          prev.map((item) =>
+                            item.id === workItemId
+                              ? { ...item, sprint_status: sprintStatus }
+                              : item,
+                          ),
                         );
                         try {
-                          const res = await fetch("/api/projects/sprint-items", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ workItemId, sprintStatus })
-                          });
+                          const res = await fetch(
+                            "/api/projects/sprint-items",
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                workItemId,
+                                sprintStatus,
+                              }),
+                            },
+                          );
                           const json = await res.json();
-                          if (!res.ok) throw new Error(json.error || "Failed to update sprint status");
+                          if (!res.ok)
+                            throw new Error(
+                              json.error || "Failed to update sprint status",
+                            );
                         } catch (e) {
                           console.error(e);
-                          setWorkItemsError(e.message || "Failed to update sprint status");
+                          setWorkItemsError(
+                            formatSupabaseError(
+                              e,
+                              "Failed to update sprint status",
+                            ),
+                          );
                         }
                       }}
                     />

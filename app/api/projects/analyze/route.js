@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
-import { analyzeProjectFromClientMessage } from "../../../../code-gigs/gemini-json-client";
+import { analyzeProjectFromClientMessage } from "../../../../code-gigs/groq-json-client";
+import {
+  getAuthenticatedUser,
+  getOwnedProject,
+} from "../../../../code-gigs/auth-route-guard/server-auth";
 
 import { calculateComplexity } from "../../../../code-gigs/complexity-calculator";
 import { calculateReadiness } from "../../../../code-gigs/readiness-calculator";
@@ -34,6 +38,9 @@ function validateAnalysis(a) {
 
 export async function POST(req) {
   try {
+    const { user, response } = await getAuthenticatedUser();
+    if (response) return response;
+
     const body = await req.json();
     const { projectId } = body;
     if (!projectId) {
@@ -41,19 +48,15 @@ export async function POST(req) {
     }
 
     const supabase = getSupabaseClient();
-    const { data: project, error: fetchError } = await supabase
-      .from("projects")
-      .select("id, client_message")
-      .eq("id", projectId)
-      .single();
+    const project = await getOwnedProject(projectId, user.id, "id, client_message");
 
-    if (fetchError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     const rawAnalysis = await analyzeProjectFromClientMessage(project.client_message);
     if (!validateAnalysis(rawAnalysis)) {
-      return NextResponse.json({ error: "Gemini returned invalid structure" }, { status: 502 });
+      return NextResponse.json({ error: "Groq returned invalid structure" }, { status: 502 });
     }
 
     const { complexity, readiness } = calculateComplexityAndReadiness(rawAnalysis);

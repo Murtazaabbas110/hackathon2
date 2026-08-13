@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../../code-gigs/supabase-client";
+import {
+  ensureOwnedWorkItem,
+  getAuthenticatedUser,
+} from "../../../../../code-gigs/auth-route-guard/server-auth";
 
 const ALLOWED_STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "REVIEW", "DONE"]; // global lifecycle
 
 export async function PATCH(req) {
   try {
+    const { user, response } = await getAuthenticatedUser();
+    if (response) return response;
+
     const body = await req.json();
     const { workItemId, status } = body;
 
@@ -18,6 +25,11 @@ export async function PATCH(req) {
     }
 
     const supabase = getSupabaseClient();
+
+    const ownedWorkItem = await ensureOwnedWorkItem(workItemId, user.id);
+    if (!ownedWorkItem) {
+      return NextResponse.json({ error: "Work item not found" }, { status: 404 });
+    }
 
     const { data, error } = await supabase
       .from("work_items")

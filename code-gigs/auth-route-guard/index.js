@@ -1,21 +1,25 @@
-export const LOCAL_USER_KEY = "scopeflow_user";
+export function isValidAuthUser(user) {
+  return Boolean(
+    user &&
+      typeof user === "object" &&
+      typeof user.id === "string" &&
+      typeof user.username === "string" &&
+      typeof user.email === "string",
+  );
+}
 
-export function parseUser(raw) {
-  if (!raw) return null;
+export async function getSessionUser() {
   try {
-    const user = typeof raw === "string" ? JSON.parse(raw) : raw;
-    if (!user || typeof user !== "object") return null;
-    if (!user.id || !user.email) return null;
-    return user;
+    const res = await fetch("/api/auth/me", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+
+    const body = await res.json();
+    return isValidAuthUser(body?.user) ? body.user : null;
   } catch {
     return null;
   }
-}
-
-export function createDemoUser({ name, email }) {
-  return {
-    id: `demo_${email.toLowerCase()}`,
-    name,
-    email
-  };
 }

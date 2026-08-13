@@ -1,20 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -24,13 +11,14 @@ import {
 } from "../ui/card";
 import { Button } from "../ui/button";
 import { AnalogMeter } from "../ui/analog-meter";
+import { calculateSprintProgress } from "../../code-gigs/progress-calculator";
 
 const SPRINT_STATUSES = ["TODO", "IN_PROGRESS", "DONE"];
 
 const STATUS_CONFIG = {
-  TODO: { label: "To Do" },
-  IN_PROGRESS: { label: "In Progress" },
-  DONE: { label: "Done" },
+  TODO: { label: "To Do", dot: "bg-sky-400" },
+  IN_PROGRESS: { label: "In Progress", dot: "bg-amber-400" },
+  DONE: { label: "Done", dot: "bg-emerald-400" },
 };
 
 function toneClasses(status) {
@@ -41,17 +29,57 @@ function toneClasses(status) {
       return "border-amber-500/40 bg-amber-500/5";
     case "TODO":
     default:
-      return "border-slate-800/70 bg-slate-950/60";
+      return "border-sky-500/40 bg-sky-500/5";
   }
 }
 
-function SprintWorkItemCard({ item, isDragging = false, onRemoveFromSprint }) {
+const PRIORITY_TONES = {
+  HIGH: "border-rose-400/30 bg-rose-400/10 text-rose-200",
+  MEDIUM: "border-amber-400/30 bg-amber-400/10 text-amber-200",
+  LOW: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
+};
+
+function MoveButton({ direction, onClick, disabled, label }) {
+  const Icon = direction === "left" ? ChevronLeft : ChevronRight;
   return (
-    <div
-      className={`flex flex-col gap-2 rounded-2xl border bg-white/5 p-3 text-xs shadow-sm transition
-        ${isDragging ? "border-emerald-400/70 shadow-lg shadow-emerald-900/40" : "border-white/10"}
-      `}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`flex h-6 w-6 items-center justify-center rounded-full border transition ${
+        disabled
+          ? "cursor-not-allowed border-white/5 text-slate-600"
+          : "border-white/10 bg-slate-950/70 text-slate-300 hover:border-sky-400/40 hover:bg-sky-400/10 hover:text-sky-200 active:scale-95"
+      }`}
     >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function SprintWorkItemCard({
+  item,
+  canMoveLeft,
+  canMoveRight,
+  onMoveLeft,
+  onMoveRight,
+  onRemoveFromSprint,
+}) {
+  const priorityTone = PRIORITY_TONES[item.priority] || PRIORITY_TONES.MEDIUM;
+  const statusIndex = SPRINT_STATUSES.indexOf(item.sprint_status);
+  const prevLabel =
+    statusIndex > 0
+      ? STATUS_CONFIG[SPRINT_STATUSES[statusIndex - 1]]?.label
+      : null;
+  const nextLabel =
+    statusIndex >= 0 && statusIndex < SPRINT_STATUSES.length - 1
+      ? STATUS_CONFIG[SPRINT_STATUSES[statusIndex + 1]]?.label
+      : null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs shadow-sm transition hover:bg-white/[0.07]">
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -59,19 +87,38 @@ function SprintWorkItemCard({ item, isDragging = false, onRemoveFromSprint }) {
           </p>
           <p className="text-sm font-semibold text-slate-100">{item.title}</p>
           {item.description && (
-            <p className="text-[11px] text-slate-300 line-clamp-3">
+            <p className="line-clamp-3 text-[11px] text-slate-300">
               {item.description}
             </p>
           )}
         </div>
         <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
-          <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priorityTone}`}
+          >
             {item.priority || "MEDIUM"}
           </span>
           <span className="block text-[10px] text-slate-500">
-            {STATUS_CONFIG[item.status]?.label || item.status}
+            {STATUS_CONFIG[item.sprint_status]?.label || item.sprint_status || "TODO"}
           </span>
         </div>
+      </div>
+      <div className="flex items-center justify-between border-t border-white/5 pt-2">
+        <MoveButton
+          direction="left"
+          disabled={!canMoveLeft}
+          onClick={() => canMoveLeft && onMoveLeft?.(item)}
+          label={prevLabel ? `Move to ${prevLabel}` : "Already in first stage"}
+        />
+        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          {STATUS_CONFIG[item.sprint_status]?.label || item.sprint_status || "TODO"}
+        </span>
+        <MoveButton
+          direction="right"
+          disabled={!canMoveRight}
+          onClick={() => canMoveRight && onMoveRight?.(item)}
+          label={nextLabel ? `Move to ${nextLabel}` : "Already in last stage"}
+        />
       </div>
       {onRemoveFromSprint && (
         <div className="flex justify-end">
@@ -88,49 +135,18 @@ function SprintWorkItemCard({ item, isDragging = false, onRemoveFromSprint }) {
   );
 }
 
-function SortableSprintWorkItem({ item, onRemoveFromSprint }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: item.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+function SprintColumn({ id, items, children }) {
+  const dot = STATUS_CONFIG[id]?.dot || "bg-slate-500";
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="cursor-grab active:cursor-grabbing"
-    >
-      <SprintWorkItemCard
-        item={item}
-        isDragging={isDragging}
-        onRemoveFromSprint={onRemoveFromSprint}
-      />
-    </div>
-  );
-}
-
-function SprintColumn({ id, items, isOver, onRemoveFromSprint }) {
-  return (
-    <div
-      className={`flex h-full min-h-[220px] flex-col rounded-2xl border p-3 text-xs transition ${
-        isOver ? "border-emerald-400/60 bg-emerald-500/5" : toneClasses(id)
-      }`}
+      className={`flex h-full min-h-[220px] flex-col rounded-2xl border p-3 text-xs transition ${toneClasses(
+        id,
+      )}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
           <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
             {STATUS_CONFIG[id]?.label || id}
           </span>
@@ -141,17 +157,11 @@ function SprintColumn({ id, items, isOver, onRemoveFromSprint }) {
       </div>
       <div className="flex-1 space-y-2 overflow-auto pr-1">
         {items.length === 0 && (
-          <p className="text-[11px] italic text-slate-500">
-            Drop sprint items here.
-          </p>
+          <div className="flex h-14 items-center justify-center rounded-xl border border-dashed border-white/10 text-[11px] italic text-slate-500">
+            No items here yet
+          </div>
         )}
-        {items.map((item) => (
-          <SortableSprintWorkItem
-            key={item.id}
-            item={item}
-            onRemoveFromSprint={onRemoveFromSprint}
-          />
-        ))}
+        {children}
       </div>
     </div>
   );
@@ -169,80 +179,24 @@ export function AgileBoard({
   onMoveToBacklog,
   onStatusChange,
 }) {
-  const [activeId, setActiveId] = useState(null);
-  const [overColumn, setOverColumn] = useState(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
-
   const itemsByStatus = useMemo(() => {
     const map = Object.fromEntries(SPRINT_STATUSES.map((s) => [s, []]));
     for (const item of sprintItems || []) {
-      const status = SPRINT_STATUSES.includes(item.status)
-        ? item.status
+      const status = SPRINT_STATUSES.includes(item.sprint_status)
+        ? item.sprint_status
         : "TODO";
       map[status].push(item);
     }
     return map;
   }, [sprintItems]);
 
-  const activeItem = useMemo(
-    () =>
-      activeId
-        ? (sprintItems || []).find((i) => i.id === activeId) || null
-        : null,
-    [activeId, sprintItems],
-  );
-
-  function handleDragStart(event) {
-    const { active } = event;
-    setActiveId(active.id);
-  }
-
-  function handleDragOver(event) {
-    const { over } = event;
-    if (!over) return;
-    const columnId = over.data.current?.columnId || over.id;
-    if (SPRINT_STATUSES.includes(columnId)) {
-      setOverColumn(columnId);
-    }
-  }
-
-  async function handleDragEnd(event) {
-    const { active, over } = event;
-    setOverColumn(null);
-    if (!over) {
-      setActiveId(null);
-      return;
-    }
-
-    const targetColumn = over.data.current?.columnId || over.id;
-    if (!SPRINT_STATUSES.includes(targetColumn)) {
-      setActiveId(null);
-      return;
-    }
-
-    const item = (sprintItems || []).find((i) => i.id === active.id);
-    if (!item || item.status === targetColumn) {
-      setActiveId(null);
-      return;
-    }
-
-    await onStatusChange?.(item.id, targetColumn);
-    setActiveId(null);
-  }
-
-  function handleDragCancel() {
-    setActiveId(null);
-    setOverColumn(null);
-  }
-
   const total = sprintItems?.length || 0;
-  const done = sprintItems?.filter((w) => w.status === "DONE").length || 0;
-  const progress = total ? Math.round((done / total) * 100) : 0;
+  const progress = total ? calculateSprintProgress(sprintItems) : 0;
+
+  async function moveItem(item, targetStatus) {
+    if (!item || !targetStatus || item.sprint_status === targetStatus) return;
+    await onStatusChange?.(item.id, targetStatus);
+  }
 
   return (
     <Card className="border-slate-700/70 bg-slate-900/60">
@@ -253,8 +207,8 @@ export function AgileBoard({
               Agile execution
             </CardTitle>
             <CardDescription className="text-xs text-slate-400">
-              Plan a sprint from your product backlog, then move items from To
-              Do to Done.
+              Plan a sprint from your product backlog, then use the arrows on
+              each card to move items from To Do to Done.
             </CardDescription>
           </div>
           <div className="flex items-center gap-3 text-xs">
@@ -369,48 +323,34 @@ export function AgileBoard({
             )}
 
             {currentSprint && (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragEnd={handleDragEnd}
-                onDragCancel={handleDragCancel}
-              >
-                <div className="grid gap-3 md:grid-cols-3">
-                  {SPRINT_STATUSES.map((status) => (
-                    <SortableContext
-                      key={status}
-                      items={itemsByStatus[status].map((i) => i.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div
-                        id={status}
-                        data-column-id={status}
-                        data-dndkit-droppable="true"
-                        className="min-h-[220px]"
-                      >
-                        <SprintColumn
-                          id={status}
-                          items={itemsByStatus[status]}
-                          isOver={overColumn === status}
+              <div className="grid gap-3 md:grid-cols-3">
+                {SPRINT_STATUSES.map((status) => (
+                  <SprintColumn
+                    key={status}
+                    id={status}
+                    items={itemsByStatus[status]}
+                  >
+                    {itemsByStatus[status].map((item) => {
+                      const statusIndex = SPRINT_STATUSES.indexOf(
+                        item.sprint_status,
+                      );
+                      const prevStatus = SPRINT_STATUSES[statusIndex - 1];
+                      const nextStatus = SPRINT_STATUSES[statusIndex + 1];
+                      return (
+                        <SprintWorkItemCard
+                          key={item.id}
+                          item={item}
+                          canMoveLeft={Boolean(prevStatus)}
+                          canMoveRight={Boolean(nextStatus)}
+                          onMoveLeft={() => moveItem(item, prevStatus)}
+                          onMoveRight={() => moveItem(item, nextStatus)}
                           onRemoveFromSprint={onMoveToBacklog}
                         />
-                      </div>
-                    </SortableContext>
-                  ))}
-                </div>
-
-                <DragOverlay>
-                  {activeItem ? (
-                    <SprintWorkItemCard
-                      item={activeItem}
-                      isDragging
-                      onRemoveFromSprint={onMoveToBacklog}
-                    />
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+                      );
+                    })}
+                  </SprintColumn>
+                ))}
+              </div>
             )}
           </>
         )}

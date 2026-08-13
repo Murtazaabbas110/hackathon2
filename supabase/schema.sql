@@ -1,4 +1,12 @@
 create extension if not exists pgcrypto;
+create schema if not exists public;
+
+create table if not exists public.users (
+  id uuid primary key default gen_random_uuid(),
+  username text not null,
+  email text unique not null,
+  password text not null
+);
 
 create table if not exists projects (
   id uuid primary key default gen_random_uuid(),

@@ -14,10 +14,12 @@ import {
 import { getSessionUser } from "../../code-gigs/auth-route-guard";
 import { AnalogMeter } from "../../components/ui/analog-meter";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -40,16 +42,22 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    if (!username.trim() || !email.trim() || !password.trim()) return;
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          username: username.trim(),
           email: email.trim(),
           password,
         }),
@@ -57,13 +65,13 @@ export default function LoginPage() {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body?.error || "Login failed");
+        setError(body?.error || "Signup failed");
         return;
       }
 
       router.push("/dashboard");
     } catch {
-      setError("Unable to login right now. Please try again.");
+      setError("Unable to create account right now. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -73,38 +81,39 @@ export default function LoginPage() {
     <div className="grid gap-6 lg:grid-cols-[0.95fr,1.05fr] lg:items-center">
       <section className="space-y-5">
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-slate-200">
-          <span className="h-2 w-2 rounded-full bg-sky-400" />
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
           Supabase table authentication
         </span>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
-          Login to ScopeFlow
+          Create your ScopeFlow account
         </h1>
         <p className="max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
-          Use your account email and password from the users table to access
-          your dashboard and project workspace.
+          Sign up with username, email, and password. Your credentials are
+          stored in the users table and validated on login.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <AnalogMeter
-            value={68}
-            label="Validation"
-            sublabel="Credentials checked against Supabase"
-            tone="sky"
+            value={75}
+            label="Identity setup"
+            sublabel="One-time account creation"
+            tone="emerald"
             size="md"
           />
           <AnalogMeter
-            value={40}
-            label="Friction"
-            sublabel="Adds password verification for each login"
-            tone="emerald"
+            value={58}
+            label="Validation strength"
+            sublabel="Simple plain-table email/password check"
+            tone="sky"
             size="md"
           />
         </div>
       </section>
+
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle>Create account</CardTitle>
           <CardDescription>
-            Login with the credentials stored in your Supabase users table.
+            This uses your Supabase users table as a simple auth source.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,8 +121,21 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <label
                 className="text-sm font-medium text-slate-200"
-                htmlFor="email"
+                htmlFor="username"
               >
+                Username
+              </label>
+              <input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="yourname"
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-200" htmlFor="email">
                 Email
               </label>
               <input
@@ -125,6 +147,7 @@ export default function LoginPage() {
                 autoComplete="email"
               />
             </div>
+
             <div className="space-y-1.5">
               <label
                 className="text-sm font-medium text-slate-200"
@@ -137,25 +160,49 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                autoComplete="current-password"
+                placeholder="Create password"
+                autoComplete="new-password"
               />
             </div>
-            {error ? (
-              <p className="text-sm text-rose-300">{error}</p>
-            ) : null}
+
+            <div className="space-y-1.5">
+              <label
+                className="text-sm font-medium text-slate-200"
+                htmlFor="confirm-password"
+              >
+                Confirm password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+              />
+            </div>
+
+            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+
             <Button
               type="submit"
               size="lg"
               className="w-full"
-              disabled={!email.trim() || !password.trim() || submitting}
+              disabled={
+                !username.trim() ||
+                !email.trim() ||
+                !password.trim() ||
+                !confirmPassword.trim() ||
+                submitting
+              }
             >
-              {submitting ? "Signing in..." : "Sign in"}
+              {submitting ? "Creating account..." : "Create account"}
             </Button>
+
             <p className="text-sm text-slate-300">
-              Need an account?{" "}
-              <Link className="text-sky-300 hover:text-sky-200" href="/signup">
-                Create one
+              Already have an account?{" "}
+              <Link className="text-sky-300 hover:text-sky-200" href="/login">
+                Sign in
               </Link>
             </p>
           </form>

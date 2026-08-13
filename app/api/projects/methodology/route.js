@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import {
+  getAuthenticatedUser,
+  getOwnedProject,
+} from "../../../../code-gigs/auth-route-guard/server-auth";
 
 const ALLOWED_METHODS = ["KANBAN", "AGILE"];
 
@@ -11,6 +15,9 @@ function validateMethodology(value) {
 
 export async function POST(req) {
   try {
+    const { user, response } = await getAuthenticatedUser();
+    if (response) return response;
+
     const body = await req.json();
     const { projectId, methodology } = body || {};
 
@@ -24,6 +31,11 @@ export async function POST(req) {
     }
 
     const supabase = getSupabaseClient();
+
+    const ownedProject = await getOwnedProject(projectId, user.id, "id");
+    if (!ownedProject) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
 
     const { data: updated, error: updateError } = await supabase
       .from("projects")

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthGuard, getLocalUser } from "../../../components/AuthGuard";
+import { AuthGuard } from "../../../components/AuthGuard";
 import { Button } from "../../../components/ui/button";
 import {
   Card,
@@ -15,6 +15,7 @@ import {
   formatSupabaseError,
   getSupabaseClient,
 } from "../../../code-gigs/supabase-client";
+import { getSessionUser } from "../../../code-gigs/auth-route-guard";
 import { AnalogMeter } from "../../../components/ui/analog-meter";
 
 export default function NewProjectPage() {
@@ -26,7 +27,18 @@ export default function NewProjectPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    setUser(getLocalUser());
+    let isMounted = true;
+
+    async function loadUser() {
+      const sessionUser = await getSessionUser();
+      if (isMounted) setUser(sessionUser);
+    }
+
+    loadUser();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   async function handleSubmit(e) {
@@ -134,7 +146,7 @@ export default function NewProjectPage() {
                   placeholder="Paste the email, brief, or chat transcript from your client here..."
                 />
                 <p className="text-xs text-slate-400">
-                  ScopeFlow will run a single Gemini analysis call to extract
+                  ScopeFlow will run a single Groq analysis call to extract
                   requirements, risks, assumptions, and more.
                 </p>
               </div>

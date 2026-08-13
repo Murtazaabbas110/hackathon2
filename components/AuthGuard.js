@@ -2,28 +2,30 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-export function getLocalUser() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem("scopeflow_user");
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    return null;
-  }
-}
+import { getSessionUser } from "../code-gigs/auth-route-guard";
 
 export function AuthGuard({ children }) {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const user = getLocalUser();
-    if (!user) {
-      router.replace("/login");
-    } else {
-      setChecked(true);
+    let isMounted = true;
+
+    async function checkAuth() {
+      const user = await getSessionUser();
+      if (!isMounted) return;
+      if (!user) {
+        router.replace("/login");
+      } else {
+        setChecked(true);
+      }
     }
+
+    checkAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   if (!checked) {

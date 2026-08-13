@@ -1,17 +1,15 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set");
+    throw new Error("GROQ_API_KEY is not set");
   }
-  return new GoogleGenerativeAI(apiKey);
+  return new Groq({ apiKey });
 }
 
-function getGeminiModel(genAI) {
-  return genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
-  });
+function getGroqModel() {
+  return process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 }
 
 function cleanJsonText(text) {
@@ -66,8 +64,8 @@ export async function generateWorkItemsFromAnalysis(analysis) {
     throw new Error("Valid analysis object is required");
   }
 
-  const genAI = getGeminiClient();
-  const model = getGeminiModel(genAI);
+  const groq = getGroqClient();
+  const model = getGroqModel();
 
   const basePrompt = `You are an expert software project planner.
 Based ONLY on the provided project analysis JSON, generate between 8 and 20 concrete implementation work items.
@@ -96,21 +94,34 @@ Project analysis JSON:
 """${JSON.stringify(analysis)}"""`;
 
   async function callOnce(prompt) {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const completion = await groq.chat.completions.create({
+      model,
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: "Respond only with valid JSON. No markdown or explanation.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+    const text = completion.choices?.[0]?.message?.content || "";
     const cleaned = cleanJsonText(text);
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
-    } catch (e) {
-      throw new Error("Failed to parse Gemini work item JSON");
+    } catch {
+      throw new Error("Failed to parse Groq work item JSON");
     }
     if (!Array.isArray(parsed)) {
-      throw new Error("Gemini work item response must be a JSON array");
+      throw new Error("Groq work item response must be a JSON array");
     }
     const normalized = parsed.map(normalizeWorkItem).filter(Boolean);
     if (!normalized.length) {
-      throw new Error("Gemini returned no valid work items");
+      throw new Error("Groq returned no valid work items");
     }
     return normalized;
   }

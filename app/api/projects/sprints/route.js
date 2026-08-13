@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
+import {
+  getAuthenticatedUser,
+  getOwnedProject,
+} from "../../../../code-gigs/auth-route-guard/server-auth";
 
 // Very small sprint model for Phase 6:
 // - One "current" sprint per project, using status = 'ACTIVE'.
 // - Additional statuses can be introduced in later phases without breaking this API.
 
 export async function GET(req) {
+  const { user, response } = await getAuthenticatedUser();
+  if (response) return response;
+
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
 
@@ -14,6 +21,11 @@ export async function GET(req) {
   }
 
   try {
+    const ownedProject = await getOwnedProject(projectId, user.id, "id");
+    if (!ownedProject) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from("sprints")
@@ -35,6 +47,9 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
+    const { user, response } = await getAuthenticatedUser();
+    if (response) return response;
+
     const body = await req.json();
     const { projectId, name, goal, startDate, endDate } = body || {};
 
@@ -46,6 +61,11 @@ export async function POST(req) {
     }
 
     const supabase = getSupabaseClient();
+
+    const ownedProject = await getOwnedProject(projectId, user.id, "id");
+    if (!ownedProject) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
 
     // Enforce a single ACTIVE sprint per project for this phase.
     const { data: existingActive, error: activeError } = await supabase

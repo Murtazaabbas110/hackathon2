@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthGuard, getLocalUser } from "../../components/AuthGuard";
+import { AuthGuard } from "../../components/AuthGuard";
 import { Button } from "../../components/ui/button";
 import {
   Card,
@@ -16,7 +16,8 @@ import {
   formatSupabaseError,
   getSupabaseClient,
 } from "../../code-gigs/supabase-client";
-import { LOCAL_USER_KEY } from "../../code-gigs/auth-route-guard";
+import { getSessionUser } from "../../code-gigs/auth-route-guard";
+import { calculateProjectProgress } from "../../code-gigs/progress-calculator";
 
 function useProjects(userId) {
   const [projects, setProjects] = useState([]);
@@ -33,7 +34,7 @@ function useProjects(userId) {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from("projects")
-          .select("id, name, created_at, analysis")
+          .select("id, name, created_at, analysis, methodology, work_items(status)")
           .eq("user_id", userId)
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -60,16 +61,28 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const u = getLocalUser();
-    if (!u) return;
-    setUser(u);
+    let isMounted = true;
+
+    async function loadSessionUser() {
+      const sessionUser = await getSessionUser();
+      if (isMounted) {
+        setUser(sessionUser);
+      }
+    }
+
+    loadSessionUser();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const { projects, loading, error } = useProjects(user?.id);
 
-  function handleLogout() {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(LOCAL_USER_KEY);
+  async function handleLogout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
       router.push("/login");
     }
   }
@@ -78,6 +91,19 @@ export default function DashboardPage() {
   const analyzed = projects.filter(
     (p) => p.analysis && p.analysis.readiness != null,
   ).length;
+  const active = projects.filter((p) => p.methodology).length;
+  const avgReadiness = projects.length
+    ? Math.round(
+        projects.reduce((acc, p) => acc + (p.analysis?.readiness ?? 0), 0) /
+          projects.length,
+      )
+    : 0;
+  const overallProgress = projects.length
+    ? Math.round(
+        projects.reduce((acc, p) => acc + calculateProjectProgress(p.work_items || []), 0) /
+          projects.length,
+      )
+    : 0;
 
   return (
     <AuthGuard>
@@ -94,7 +120,7 @@ export default function DashboardPage() {
                   Dashboard
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
-                  Welcome{user ? `, ${user.name}` : ""}. Turn client messages
+                  Welcome{user ? `, ${user.username}` : ""}. Turn client messages
                   into execution-ready projects with a cleaner, more responsive
                   workspace.
                 </p>
@@ -162,9 +188,9 @@ export default function DashboardPage() {
           </Card>
           <Card className="transition-transform hover:-translate-y-0.5">
             <CardHeader className="mb-1">
-              <CardDescription>Analyzed projects</CardDescription>
+              <CardDescription>Active projects</CardDescription>
               <CardTitle className="text-2xl">
-                {loading ? "—" : analyzed}
+                {loading ? "—" : active}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -172,16 +198,15 @@ export default function DashboardPage() {
             <CardHeader className="mb-1">
               <CardDescription>Average readiness</CardDescription>
               <CardTitle className="text-2xl">
-                {loading
-                  ? "—"
-                  : projects.length
-                    ? `${Math.round(
-                        projects.reduce(
-                          (acc, p) => acc + (p.analysis?.readiness ?? 0),
-                          0,
-                        ) / projects.length,
-                      )}%`
-                    : "—"}
+                {loading ? "—" : `${avgReadiness}%`}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="transition-transform hover:-translate-y-0.5 sm:col-span-3">
+            <CardHeader className="mb-1">
+              <CardDescription>Overall progress</CardDescription>
+              <CardTitle className="text-2xl">
+                {loading ? "—" : `${overallProgress}%`}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -191,8 +216,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Your projects</CardTitle>
             <CardDescription>
-              Projects are stored in Supabase using your demo user id from
-              localStorage.
+              Projects are stored in Supabase using your authenticated user id.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -205,41 +229,75 @@ export default function DashboardPage() {
               </p>
             )}
             {!loading && !error && projects.length === 0 && (
-              <div className="text-sm text-slate-400">
-                No projects yet. Start by creating a new project from a messy
-                client message.
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
+                <p className="text-base font-semibold text-slate-100">
+                  No projects yet
+                </p>
+                <p className="mt-1 text-slate-400">
+                  Start with a client message and generate your first execution-ready workspace.
+                </p>
+                <Button
+                  className="mt-4"
+                  size="sm"
+                  onClick={() => router.push("/projects/new")}
+                >
+                  Create your first project
+                </Button>
               </div>
             )}
             {!loading && !error && projects.length > 0 && (
               <ul className="divide-y divide-white/8 text-sm">
-                {projects.map((project) => (
-                  <li
-                    key={project.id}
-                    className="flex cursor-pointer flex-col gap-3 rounded-2xl px-3 py-4 transition hover:bg-white/5 sm:flex-row sm:items-center sm:justify-between"
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                  >
-                    <div className="space-y-1">
-                      <p className="font-medium text-slate-100">
-                        {project.name}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        Created {new Date(project.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 sm:text-right">
-                      <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
-                        {project.analysis?.summary
-                          ? "Analyzed"
-                          : "Awaiting analysis"}
+                {projects.map((project) => {
+                  const items = project.work_items || [];
+                  const progress = calculateProjectProgress(items);
+                  const done = items.filter((w) => w.status === "DONE").length;
+                  return (
+                    <li
+                      key={project.id}
+                      className="flex cursor-pointer flex-col gap-3 rounded-2xl px-3 py-4 transition hover:bg-white/5 sm:flex-row sm:items-center sm:justify-between"
+                      onClick={() => router.push(`/projects/${project.id}`)}
+                    >
+                      <div className="min-w-0 space-y-2">
+                        <p className="truncate font-medium text-slate-100">
+                          {project.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Updated {new Date(project.created_at).toLocaleString()}
+                        </p>
+                        {items.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-36 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-slate-400">
+                              {done}/{items.length} done · {progress}%
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      {project.analysis?.readiness != null && (
-                        <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-emerald-200">
-                          Readiness {project.analysis.readiness}%
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 sm:text-right">
+                        {project.methodology && (
+                          <div className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-sky-200">
+                            {project.methodology}
+                          </div>
+                        )}
+                        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
+                          {project.analysis?.summary
+                            ? "Analyzed"
+                            : "Awaiting analysis"}
                         </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                        {project.analysis?.readiness != null && (
+                          <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-emerald-200">
+                            Readiness {project.analysis.readiness}%
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>

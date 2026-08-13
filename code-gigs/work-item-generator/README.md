@@ -1,30 +1,8 @@
-# Work Item Generator (Gemini JSON client)
+# Work Item Generator
 
-Server-side helper for generating structured work items from project analysis using the Gemini API.
-
-## Responsibilities
-
-- Accepts a full `analysis` object (summary, objectives, requirements, ambiguities, risks, assumptions, dependencies, complexity, readiness).
-- Calls Gemini with a strict JSON-only prompt.
-- Returns an array of work items with the following shape:
-
-```ts
-export type WorkItem = {
-  epic: string;
-  title: string;
-  description: string;
-  priority: "HIGH" | "MEDIUM" | "LOW";
-  acceptanceCriteria: string[];
-  dependencies: string[]; // titles or IDs of other work items or external dependencies
-};
-```
-
-- Ensures 8–20 work items where possible.
-- Attempts one retry with a stricter prompt if the first response is not valid JSON.
+Server-side helper that generates **8–20 structured work items** from a project analysis using the **Groq API**. Converts the AI-produced analysis (summary, objectives, requirements, risks, dependencies) into an actionable, implementation-focused backlog.
 
 ## Usage
-
-This module is used only from server-side Next.js API routes. It must never be imported into client components to avoid exposing the Gemini API key.
 
 ```js
 import { generateWorkItemsFromAnalysis } from "../code-gigs/work-item-generator";
@@ -32,4 +10,37 @@ import { generateWorkItemsFromAnalysis } from "../code-gigs/work-item-generator"
 const workItems = await generateWorkItemsFromAnalysis(project.analysis);
 ```
 
-The caller is responsible for persisting work items to Supabase and applying any additional validation or normalization rules.
+Returns an array of work items:
+
+```js
+{
+  epic: "string",                    // short epic or theme
+  title: "string",                   // concise, actionable title
+  description: "string",             // 1-3 sentences of practical detail
+  priority: "HIGH" | "MEDIUM" | "LOW",
+  acceptanceCriteria: ["string"],    // done-when conditions
+  dependencies: ["string"],          // related work items or external deps
+}
+```
+
+## Features
+
+- Targets 8–20 items and returns as many as the analysis justifies.
+- Strict JSON-only prompt at `temperature: 0.2`.
+- Normalizes and validates every item — invalid or incomplete items are dropped.
+- Throws if no valid work items are produced.
+- Retries once with a stricter prompt if the first response is invalid.
+- Does not invent technologies, vendors, or deadlines not present in the analysis.
+
+## Environment variables
+
+```bash
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile   # optional, has a default
+```
+
+## Requirements
+
+- `groq-sdk`
+- **Server-only.** This module reads `GROQ_API_KEY` and must never be imported into client components.
+- The caller is responsible for persisting the returned items to Supabase and applying any additional normalization.

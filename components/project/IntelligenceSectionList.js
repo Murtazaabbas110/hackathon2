@@ -8,27 +8,70 @@ import {
   CardContent,
 } from "../ui/card";
 
-function ItemRow({ title, description, meta, sourceText }) {
+function badgeTone(label, value) {
+  const v = String(value || "").toUpperCase();
+  if (/^PRIORITY/i.test(label)) {
+    if (v.includes("HIGH")) return "border-rose-400/30 bg-rose-400/10 text-rose-200";
+    if (v.includes("MEDIUM")) return "border-amber-400/30 bg-amber-400/10 text-amber-200";
+    if (v.includes("LOW")) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+  }
+  if (/^SEVERITY/i.test(label)) {
+    if (v.includes("HIGH") || v.includes("CRITICAL")) return "border-rose-400/30 bg-rose-400/10 text-rose-200";
+    if (v.includes("MEDIUM")) return "border-amber-400/30 bg-amber-400/10 text-amber-200";
+    if (v.includes("LOW")) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+  }
+  if (/^CONFIDENCE/i.test(label)) {
+    if (v.includes("HIGH")) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+    if (v.includes("MEDIUM")) return "border-sky-400/30 bg-sky-400/10 text-sky-200";
+    if (v.includes("LOW")) return "border-amber-400/30 bg-amber-400/10 text-amber-200";
+  }
+  if (/^CATEGORY/i.test(label)) {
+    return "border-violet-400/30 bg-violet-400/10 text-violet-200";
+  }
+  return "border-white/10 bg-slate-950/80 text-slate-300";
+}
+
+function ItemRow({ title, description, meta, metaLabel, sourceText }) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/5 p-3 text-xs shadow-sm">
+    <div className="rounded-2xl border border-white/8 bg-white/5 p-3 text-xs shadow-sm transition hover:bg-white/[0.07]">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           {title && <p className="font-medium text-slate-100">{title}</p>}
           {description && <p className="text-slate-300">{description}</p>}
-          {!title && !description && meta && (
-            <p className="text-slate-300">{meta}</p>
+          {!title && !description && meta && meta.length > 0 && (
+            <p className="text-slate-300">{meta[0].value}</p>
           )}
           {sourceText && (
-            <p className="mt-1 border-l border-slate-700/70 pl-2 text-[11px] text-slate-400">
-              From client message:{" "}
-              <span className="italic">“{sourceText}”</span>
-            </p>
+            <div className="mt-1.5 flex items-start gap-2 rounded-lg border border-sky-400/10 bg-sky-400/[0.04] px-2.5 py-1.5">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="mt-0.5 shrink-0 text-sky-300/70"
+              >
+                <path d="M9 12h6M9 16h6M9 8h2M7 4h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                <span className="font-medium text-sky-200/80">Source: </span>
+                <span className="italic">“{sourceText}”</span>
+              </p>
+            </div>
           )}
         </div>
-        {meta && title && (
-          <span className="shrink-0 rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[10px] text-slate-300">
-            {meta}
-          </span>
+        {meta && (
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            {meta.map(({ label, value }, idx) => (
+              <span
+                key={idx}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${badgeTone(label, value)}`}
+              >
+                {label === value ? value : `${label}: ${value}`}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -49,15 +92,14 @@ function normalizeItem(item) {
   const description = item.description || item.detail || item.text || null;
   const sourceText = item.sourceText || item.source || null;
 
-  // Build a compact meta label from known fields
-  const parts = [];
-  if (item.category) parts.push(item.category);
-  if (item.priority) parts.push(`Priority: ${item.priority}`);
-  if (item.confidence) parts.push(`Confidence: ${item.confidence}`);
-  if (item.severity) parts.push(`Severity: ${item.severity}`);
-  const meta = parts.length ? parts.join(" • ") : null;
+  // Build compact meta badges from known fields
+  const meta = [];
+  if (item.category) meta.push({ label: "Category", value: item.category });
+  if (item.priority) meta.push({ label: "Priority", value: item.priority });
+  if (item.confidence) meta.push({ label: "Confidence", value: item.confidence });
+  if (item.severity) meta.push({ label: "Severity", value: item.severity });
 
-  return { title, description, meta, sourceText };
+  return { title, description, meta: meta.length ? meta : null, sourceText };
 }
 
 export function IntelligenceSectionList({

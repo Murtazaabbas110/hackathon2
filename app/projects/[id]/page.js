@@ -15,12 +15,15 @@ import {
   formatSupabaseError,
   getSupabaseClient,
 } from "../../../code-gigs/supabase-client";
+import { getSessionUser } from "../../../code-gigs/auth-route-guard";
+import { calculateProjectProgress } from "../../../code-gigs/progress-calculator";
 import { IntelligenceOverview } from "../../../components/project/IntelligenceOverview";
 import { IntelligenceSectionList } from "../../../components/project/IntelligenceSectionList";
 import { MethodologySelector } from "../../../components/project/MethodologySelector";
 import { KanbanBoard } from "../../../components/project/KanbanBoard";
 import { AgileBoard } from "../../../components/project/AgileBoard";
 import { AnalogMeter } from "../../../components/ui/analog-meter";
+import { AIStepLoader } from "../../../components/project/AIStepLoader";
 
 export default function ProjectWorkspacePage() {
   const router = useRouter();
@@ -39,6 +42,7 @@ export default function ProjectWorkspacePage() {
   const [sprintsLoading, setSprintsLoading] = useState(true);
   const [sprintsError, setSprintsError] = useState(null);
   const [creatingSprint, setCreatingSprint] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     if (!projectId) return;
@@ -51,13 +55,23 @@ export default function ProjectWorkspacePage() {
       setSprintsLoading(true);
       setSprintsError(null);
       try {
+        const sessionUser = await getSessionUser();
+        if (!sessionUser) {
+          router.replace("/login");
+          return;
+        }
+
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from("projects")
           .select("id, name, client_message, analysis, methodology, created_at")
           .eq("id", projectId)
-          .single();
+          .eq("user_id", sessionUser.id)
+          .maybeSingle();
         if (error) throw error;
+        if (!data) {
+          throw new Error("Project not found or you do not have access.");
+        }
         if (isMounted) setProject(data);
 
         const { data: wi, error: wiError } = await supabase
@@ -108,6 +122,7 @@ export default function ProjectWorkspacePage() {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function triggerAnalysis() {
@@ -182,6 +197,13 @@ export default function ProjectWorkspacePage() {
     }
   }
 
+  const totalItems = workItems.length;
+  const completedItems = workItems.filter((w) => w.status === "DONE").length;
+  const inProgressItems = workItems.filter((w) =>
+    ["TODO", "IN_PROGRESS", "REVIEW"].includes(w.status),
+  ).length;
+  const progressPct = calculateProjectProgress(workItems);
+
   return (
     <AuthGuard>
       <div className="space-y-6 sm:space-y-8">
@@ -200,9 +222,22 @@ export default function ProjectWorkspacePage() {
                   {project?.name || "Project"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
-                  Client message → AI analysis → project intelligence → work
-                  items.
+                  Transform an unstructured client message into grounded intelligence, then execute with Kanban or Agile workflows.
                 </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-emerald-200">
+                  Readiness {project?.analysis?.readiness ?? 0}%
+                </span>
+                <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-amber-200">
+                  Complexity {project?.analysis?.complexity || "N/A"}
+                </span>
+                <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-sky-200">
+                  Progress {progressPct}%
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
+                  {project?.methodology || "Methodology not selected"}
+                </span>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button
@@ -240,13 +275,7 @@ export default function ProjectWorkspacePage() {
                 size="sm"
               />
               <AnalogMeter
-                value={
-                  project?.analysis?.complexity === "HIGH"
-                    ? 82
-                    : project?.analysis?.complexity === "MEDIUM"
-                      ? 52
-                      : 26
-                }
+                value={project?.analysis?.complexity === "HIGH" ? 82 : project?.analysis?.complexity === "MEDIUM" ? 52 : 26}
                 label="Complexity"
                 sublabel="A quick analog feel for scope size"
                 tone="amber"
@@ -280,7 +309,7 @@ export default function ProjectWorkspacePage() {
                 <CardHeader>
                   <CardTitle>Analysis status</CardTitle>
                   <CardDescription>
-                    Run Gemini analysis to extract requirements and calculate
+                    Run Groq analysis to extract requirements and calculate
                     complexity/readiness.
                   </CardDescription>
                 </CardHeader>
@@ -292,9 +321,7 @@ export default function ProjectWorkspacePage() {
                     </p>
                   )}
                   {analyzing && (
-                    <p className="text-slate-300">
-                      Running Gemini analysis… This usually takes a few seconds.
-                    </p>
+                    <AIStepLoader mode="analysis" />
                   )}
                   {analyzeError && (
                     <p className="text-rose-400">{analyzeError}</p>
@@ -324,99 +351,163 @@ export default function ProjectWorkspacePage() {
 
             {project.analysis && (
               <div className="mt-6 space-y-4">
-                <IntelligenceOverview analysis={project.analysis} />
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ["overview", "Overview"],
+                      ["requirements", "Requirements"],
+                      ["ambiguities", "Ambiguities"],
+                      ["risks", "Risks"],
+                      ["assumptions", "Assumptions"],
+                      ["dependencies", "Dependencies"],
+                      ["work-items", "Work Items"],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveTab(key)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                          activeTab === key
+                            ? "bg-sky-400/15 text-sky-200 border border-sky-400/40"
+                            : "bg-white/5 text-slate-300 border border-white/10 hover:border-sky-400/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between gap-2">
-                    <div>
-                      <CardTitle>Work items</CardTitle>
-                      <CardDescription>
-                        AI-generated implementation tasks you can later execute
-                        in Kanban/Agile views.
-                      </CardDescription>
-                    </div>
-                    <div className="rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-slate-300">
-                      {workItems.length}{" "}
-                      {workItems.length === 1 ? "item" : "items"}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    {workItemsError && (
-                      <p className="text-xs text-rose-400">{workItemsError}</p>
-                    )}
-                    {workItemsLoading && !workItemsError && (
-                      <p className="text-xs text-slate-400">
-                        Loading work items…
-                      </p>
-                    )}
-                    {!workItemsLoading &&
-                      !workItemsError &&
-                      workItems.length === 0 && (
-                        <p className="text-xs text-slate-400">
-                          No work items yet. Generate them from the analysis
-                          using the button above.
-                        </p>
-                      )}
-                    {!workItemsLoading &&
-                      !workItemsError &&
-                      workItems.length > 0 && (
-                        <div className="max-h-72 space-y-2 overflow-auto pr-1 text-xs">
-                          {workItems.map((item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-md border border-slate-800/70 bg-slate-950/40 p-3"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                                    {item.epic || "Epic"}
-                                  </p>
-                                  <p className="text-sm font-semibold text-slate-100">
-                                    {item.title}
-                                  </p>
-                                  {item.description && (
-                                    <p className="text-slate-300">
-                                      {item.description}
+                {activeTab === "overview" && (
+                  <IntelligenceOverview analysis={project.analysis} />
+                )}
+
+                {activeTab === "requirements" && (
+                  <IntelligenceSectionList
+                    title="Requirements"
+                    description="Structured functional and non-functional requirements with traceability back to the client message."
+                    emptyLabel="No requirements were extracted from the client message."
+                    items={project.analysis.requirements}
+                  />
+                )}
+
+                {activeTab === "ambiguities" && (
+                  <IntelligenceSectionList
+                    title="Ambiguities"
+                    description="Areas where the client message is unclear or underspecified. Clarifying these will improve readiness."
+                    emptyLabel="No ambiguities were identified."
+                    items={project.analysis.ambiguities}
+                  />
+                )}
+
+                {activeTab === "risks" && (
+                  <IntelligenceSectionList
+                    title="Risks"
+                    description="Potential delivery, technical, or requirement risks inferred from the client message."
+                    emptyLabel="No explicit risks were captured."
+                    items={project.analysis.risks}
+                  />
+                )}
+
+                {activeTab === "assumptions" && (
+                  <IntelligenceSectionList
+                    title="Assumptions"
+                    description="Assumptions the analysis had to make due to missing information. These should be validated with the client."
+                    emptyLabel="No assumptions were recorded."
+                    items={project.analysis.assumptions}
+                  />
+                )}
+
+                {activeTab === "dependencies" && (
+                  <IntelligenceSectionList
+                    title="Dependencies"
+                    description="External teams, systems, or constraints that could affect delivery."
+                    emptyLabel="No dependencies were identified."
+                    items={project.analysis.dependencies}
+                  />
+                )}
+
+                {activeTab === "work-items" && (
+                  <>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-2">
+                        <div>
+                          <CardTitle>Work items</CardTitle>
+                          <CardDescription>
+                            AI-generated implementation tasks you can execute in Kanban or Agile views.
+                          </CardDescription>
+                        </div>
+                        <div className="rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-slate-300">
+                          {workItems.length} {workItems.length === 1 ? "item" : "items"}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3 text-sm">
+                        {generatingWorkItems && <AIStepLoader mode="work-items" />}
+                        {workItemsError && (
+                          <p className="text-xs text-rose-400">{workItemsError}</p>
+                        )}
+                        {workItemsLoading && !workItemsError && !generatingWorkItems && (
+                          <p className="text-xs text-slate-400">Loading work items…</p>
+                        )}
+                        {!workItemsLoading && !workItemsError && workItems.length === 0 && (
+                          <p className="text-xs text-slate-400">
+                            No work items yet. Generate them from the analysis using the button above.
+                          </p>
+                        )}
+                        {!workItemsLoading && !workItemsError && workItems.length > 0 && (
+                          <div className="max-h-72 space-y-2 overflow-auto pr-1 text-xs">
+                            {workItems.map((item) => (
+                              <div
+                                key={item.id}
+                                className="rounded-md border border-slate-800/70 bg-slate-950/40 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                      {item.epic || "Epic"}
                                     </p>
-                                  )}
-                                  {Array.isArray(item.acceptance_criteria) &&
-                                    item.acceptance_criteria.length > 0 && (
+                                    <p className="text-sm font-semibold text-slate-100">{item.title}</p>
+                                    {item.description && <p className="text-slate-300">{item.description}</p>}
+                                    {Array.isArray(item.acceptance_criteria) && item.acceptance_criteria.length > 0 && (
                                       <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300">
-                                        {item.acceptance_criteria.map(
-                                          (ac, idx) => (
-                                            <li key={idx}>{ac}</li>
-                                          ),
-                                        )}
+                                        {item.acceptance_criteria.map((ac, idx) => (
+                                          <li key={idx}>{ac}</li>
+                                        ))}
                                       </ul>
                                     )}
-                                </div>
-                                <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
-                                  <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px]">
-                                    {item.priority}
-                                  </span>
-                                  <div>{item.status}</div>
+                                  </div>
+                                  <div className="shrink-0 space-y-1 text-right text-[11px] text-slate-400">
+                                    <span className="inline-flex rounded-full bg-slate-900 px-2 py-0.5 text-[10px]">
+                                      {item.priority}
+                                    </span>
+                                    <div>{item.status}</div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </CardContent>
-                </Card>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
 
-                <MethodologySelector
-                  projectId={project.id}
-                  initialMethodology={project.methodology}
-                  hasWorkItems={workItems.length > 0}
-                />
+                    <MethodologySelector
+                      projectId={project.id}
+                      initialMethodology={project.methodology}
+                      hasWorkItems={workItems.length > 0}
+                      onChange={(methodology) =>
+                        setProject((prev) =>
+                          prev ? { ...prev, methodology } : prev,
+                        )
+                      }
+                    />
 
-                {project.methodology === "KANBAN" && (
-                  <div className="mt-4">
-                    <KanbanBoard
-                      workItems={workItems}
-                      loading={workItemsLoading}
-                      error={workItemsError}
-                      onStatusChange={async (workItemId, status) => {
+                    {project.methodology === "KANBAN" && (
+                      <div className="mt-4">
+                        <KanbanBoard
+                          workItems={workItems}
+                          loading={workItemsLoading}
+                          error={workItemsError}
+                          onStatusChange={async (workItemId, status) => {
                         try {
                           // optimistic update
                           setWorkItems((prev) =>
@@ -485,25 +576,21 @@ export default function ProjectWorkspacePage() {
                             // ignore secondary failure
                           }
                         }
-                      }}
-                    />
-                  </div>
-                )}
+                          }}
+                        />
+                      </div>
+                    )}
 
-                {project.methodology === "AGILE" && (
-                  <div className="mt-4">
-                    <AgileBoard
-                      currentSprint={
-                        sprints.find((s) => s.status === "ACTIVE") || null
-                      }
-                      backlogItems={workItems.filter((w) => !w.sprint_id)}
-                      sprintItems={workItems.filter(
-                        (w) => w.sprint_id && w.sprint_status,
-                      )}
-                      loading={workItemsLoading || sprintsLoading}
-                      error={workItemsError || sprintsError}
-                      creatingSprint={creatingSprint}
-                      onCreateSprint={async () => {
+                    {project.methodology === "AGILE" && (
+                      <div className="mt-4">
+                        <AgileBoard
+                          currentSprint={sprints.find((s) => s.status === "ACTIVE") || null}
+                          backlogItems={workItems.filter((w) => !w.sprint_id)}
+                          sprintItems={workItems.filter((w) => w.sprint_id && w.sprint_status)}
+                          loading={workItemsLoading || sprintsLoading}
+                          error={workItemsError || sprintsError}
+                          creatingSprint={creatingSprint}
+                          onCreateSprint={async () => {
                         if (!projectId) return;
                         setCreatingSprint(true);
                         setSprintsError(null);
@@ -643,43 +730,12 @@ export default function ProjectWorkspacePage() {
                             ),
                           );
                         }
-                      }}
-                    />
-                  </div>
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <IntelligenceSectionList
-                    title="Requirements"
-                    description="Structured functional and non-functional requirements with traceability back to the client message."
-                    emptyLabel="No requirements were extracted from the client message."
-                    items={project.analysis.requirements}
-                  />
-                  <IntelligenceSectionList
-                    title="Ambiguities"
-                    description="Areas where the client message is unclear or underspecified. Clarifying these will improve readiness."
-                    emptyLabel="No ambiguities were identified."
-                    items={project.analysis.ambiguities}
-                  />
-                  <IntelligenceSectionList
-                    title="Risks"
-                    description="Potential delivery, technical, or requirement risks inferred from the client message."
-                    emptyLabel="No explicit risks were captured."
-                    items={project.analysis.risks}
-                  />
-                  <IntelligenceSectionList
-                    title="Assumptions"
-                    description="Assumptions the analysis had to make due to missing information. These should be validated with the client."
-                    emptyLabel="No assumptions were recorded."
-                    items={project.analysis.assumptions}
-                  />
-                  <IntelligenceSectionList
-                    title="Dependencies"
-                    description="External teams, systems, or constraints that could affect delivery."
-                    emptyLabel="No dependencies were identified."
-                    items={project.analysis.dependencies}
-                  />
-                </div>
               </div>
             )}
           </>

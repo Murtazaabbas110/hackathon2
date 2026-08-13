@@ -10,18 +10,27 @@ import {
   CardContent,
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { getLocalUser } from "../components/AuthGuard";
+import { getSessionUser } from "../code-gigs/auth-route-guard";
 import { AnalogMeter } from "../components/ui/analog-meter";
 
 export default function LandingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const user = getLocalUser();
+    let isMounted = true;
 
-    if (user) {
-      router.replace("/dashboard");
+    async function checkSession() {
+      const user = await getSessionUser();
+      if (isMounted && user) {
+        router.replace("/dashboard");
+      }
     }
+
+    checkSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   return (
@@ -144,7 +153,7 @@ export default function LandingPage() {
                       </p>
 
                       <p className="mt-1 text-slate-400">
-                        Gemini extracts requirements, risks, assumptions, and
+                        Groq extracts requirements, risks, assumptions, and
                         dependencies with evidence.
                       </p>
                     </div>

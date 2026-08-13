@@ -42,6 +42,7 @@ export function MethodologySelector({
   projectId,
   initialMethodology,
   hasWorkItems,
+  onChange,
 }) {
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -76,6 +77,7 @@ export function MethodologySelector({
       }
       setSuccess("Methodology saved. You can change this later if needed.");
       setSelected(normalized);
+      onChange?.(normalized);
     } catch (e) {
       console.error(e);
       setError(e.message || "Failed to save methodology");

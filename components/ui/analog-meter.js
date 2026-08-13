@@ -64,8 +64,14 @@ export function AnalogMeter({
     const radians = (angle * Math.PI) / 180;
 
     return {
-      x: cx + r * Math.cos(radians),
-      y: cy + r * Math.sin(radians),
+      x: +(
+        cx +
+        r * Math.cos(radians)
+      ).toFixed(3),
+      y: +(
+        cy +
+        r * Math.sin(radians)
+      ).toFixed(3),
     };
   }
 

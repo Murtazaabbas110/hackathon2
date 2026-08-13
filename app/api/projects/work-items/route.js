@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "../../../../code-gigs/supabase-client";
 import { generateWorkItemsFromAnalysis } from "../../../../code-gigs/work-item-generator";
+import {
+  getAuthenticatedUser,
+  getOwnedProject,
+} from "../../../../code-gigs/auth-route-guard/server-auth";
 
 function validateAnalysisForWorkItems(analysis) {
   if (!analysis || typeof analysis !== "object") return false;
@@ -11,6 +15,9 @@ function validateAnalysisForWorkItems(analysis) {
 
 export async function POST(req) {
   try {
+    const { user, response } = await getAuthenticatedUser();
+    if (response) return response;
+
     const body = await req.json();
     const { projectId } = body;
     if (!projectId) {
@@ -19,13 +26,9 @@ export async function POST(req) {
 
     const supabase = getSupabaseClient();
 
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("id, analysis")
-      .eq("id", projectId)
-      .single();
+    const project = await getOwnedProject(projectId, user.id, "id, analysis");
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
